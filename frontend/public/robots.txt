@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://shaaka.com/sitemap.xml
+
+# Block admin pages
+Disallow: /admin/
+
+# Block API routes
+Disallow: /api/
