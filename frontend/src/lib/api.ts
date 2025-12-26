@@ -68,10 +68,13 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
+        // Refresh failed, clear tokens
         setAccessToken(null);
+        // Optionally trigger auth modal instead of redirect
         if (typeof window !== 'undefined') {
-          window.location.href = '/auth/login';
+          // Clear any stored auth state
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
         }
         return Promise.reject(refreshError);
       }
@@ -84,16 +87,16 @@ api.interceptors.response.use(
 // Auth API
 export const authAPI = {
   sendOTP: (phone: string) =>
-    api.post('/auth/send-otp', { phone }),
+    api.post('/auth/request-otp', { phone }),
 
-  verifyOTP: (phone: string, otp: string) =>
-    api.post<{ accessToken: string; user: any }>('/auth/verify-otp', { phone, otp }),
+  verifyOTP: (phone: string, otp: string, name?: string) =>
+    api.post<{ data: { user: any; tokens: { accessToken: string; refreshToken: string } } }>('/auth/verify-otp', { phone, otp, name }),
 
   completeProfile: (data: { name: string; email?: string }) =>
-    api.post('/auth/complete-profile', data),
+    api.put('/auth/profile', data),
 
   getProfile: () =>
-    api.get('/auth/profile'),
+    api.get('/auth/me'),
 
   updateProfile: (data: { name?: string; email?: string }) =>
     api.put('/auth/profile', data),
@@ -109,36 +112,36 @@ export const authAPI = {
 
   // Address management
   addAddress: (data: {
-    type: string;
-    name: string;
-    phone: string;
-    address: string;
+    label: 'Home' | 'Office' | 'Other';
+    houseNumber: string;
+    street: string;
+    colony: string;
     landmark?: string;
-    city: string;
-    state: string;
-    pincode: string;
+    latitude: number;
+    longitude: number;
     isDefault?: boolean;
   }) =>
     api.post('/auth/addresses', data),
 
   updateAddress: (id: string, data: {
-    type?: string;
-    name?: string;
-    phone?: string;
-    address?: string;
+    label?: 'Home' | 'Office' | 'Other';
+    houseNumber?: string;
+    street?: string;
+    colony?: string;
     landmark?: string;
-    city?: string;
-    state?: string;
-    pincode?: string;
-    isDefault?: boolean;
+    latitude?: number;
+    longitude?: number;
   }) =>
     api.put(`/auth/addresses/${id}`, data),
 
   deleteAddress: (id: string) =>
     api.delete(`/auth/addresses/${id}`),
 
+  getAddresses: () =>
+    api.get('/auth/addresses'),
+
   setDefaultAddress: (id: string) =>
-    api.patch(`/auth/addresses/${id}/default`),
+    api.put(`/auth/addresses/${id}/default`),
 };
 
 // Category API
@@ -180,6 +183,9 @@ export const productAPI = {
   getBySlug: (slug: string) =>
     api.get(`/products/${slug}`),
 
+  getById: (id: string) =>
+    api.get(`/products/id/${id}`),
+
   getFeatured: () =>
     api.get('/products/featured'),
 
@@ -205,14 +211,14 @@ export const cartAPI = {
   get: () =>
     api.get('/cart'),
 
-  addItem: (productId: string, quantity: number = 1) =>
-    api.post('/cart/items', { productId, quantity }),
+  addItem: (productId: string, quantityOptionId: string, quantity: number = 1) =>
+    api.post('/cart/items', { productId, quantityOptionId, quantity }),
 
-  updateItem: (productId: string, quantity: number) =>
-    api.put(`/cart/items/${productId}`, { quantity }),
+  updateItem: (itemId: string, quantity: number) =>
+    api.put(`/cart/items/${itemId}`, { quantity }),
 
-  removeItem: (productId: string) =>
-    api.delete(`/cart/items/${productId}`),
+  removeItem: (itemId: string) =>
+    api.delete(`/cart/items/${itemId}`),
 
   clear: () =>
     api.delete('/cart'),
@@ -230,10 +236,10 @@ export const wishlistAPI = {
     api.get('/wishlist'),
 
   add: (productId: string) =>
-    api.post('/wishlist', { productId }),
+    api.post('/wishlist/items', { productId }),
 
   remove: (productId: string) =>
-    api.delete(`/wishlist/${productId}`),
+    api.delete(`/wishlist/items/${productId}`),
 
   check: (productId: string) =>
     api.get(`/wishlist/check/${productId}`),
@@ -248,18 +254,9 @@ export const orderAPI = {
     api.get(`/orders/${id}`),
 
   create: (data: {
-    shippingAddress: {
-      fullName: string;
-      phone: string;
-      addressLine1: string;
-      addressLine2?: string;
-      city: string;
-      state: string;
-      pincode: string;
-      landmark?: string;
-    };
-    paymentMethod: 'ONLINE' | 'COD';
-    notes?: string;
+    addressId: string;
+    paymentMethod: 'RAZORPAY' | 'COD';
+    orderNotes?: string;
   }) =>
     api.post('/orders', data),
 
@@ -274,8 +271,8 @@ export const orderAPI = {
     api.post(`/orders/${id}/cancel`, { reason }),
 
   // Admin
-  updateStatus: (id: string, status: string) =>
-    api.patch(`/orders/${id}/status`, { status }),
+  updateStatus: (id: string, status: string, note?: string) =>
+    api.put(`/admin/orders/${id}/status`, { status, note }),
 
   getAllAdmin: (params?: {
     page?: number;
@@ -284,16 +281,19 @@ export const orderAPI = {
     startDate?: string;
     endDate?: string;
   }) =>
-    api.get('/orders/admin/all', { params }),
+    api.get('/admin/orders', { params }),
+
+  getAdminById: (id: string) =>
+    api.get(`/admin/orders/${id}`),
 };
 
 // Review API
 export const reviewAPI = {
   getByProduct: (productId: string, params?: { page?: number; limit?: number }) =>
-    api.get(`/reviews/product/${productId}`, { params }),
+    api.get(`/products/${productId}/reviews`, { params }),
 
-  create: (data: { productId: string; rating: number; comment?: string }) =>
-    api.post('/reviews', data),
+  create: (data: { productId: string; orderId: string; orderItemId: string; rating: number; comment?: string }) =>
+    api.post(`/products/${data.productId}/reviews`, data),
 
   update: (id: string, data: { rating?: number; comment?: string }) =>
     api.put(`/reviews/${id}`, data),
@@ -307,11 +307,11 @@ export const reviewAPI = {
 
 // Admin API
 export const adminAPI = {
-  getDashboard: () =>
-    api.get('/admin/dashboard'),
+  getDashboard: (params?: { period?: string }) =>
+    api.get('/admin/dashboard', { params }),
 
   getAnalytics: (params?: { period?: string; startDate?: string; endDate?: string }) =>
-    api.get('/admin/analytics', { params }),
+    api.get('/admin/analytics/revenue', { params }),
 
   getUsers: (params?: { page?: number; limit?: number; search?: string; role?: string }) =>
     api.get('/admin/users', { params }),
@@ -330,33 +330,33 @@ export const adminAPI = {
   }) =>
     api.get('/admin/audit-logs', { params }),
 
-  // Product management
+  // Product management (admin routes)
   createProduct: (data: FormData) =>
-    api.post('/products', data, {
+    api.post('/admin/products', data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
   updateProduct: (id: string, data: FormData) =>
-    api.put(`/products/${id}`, data, {
+    api.put(`/admin/products/${id}`, data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
   deleteProduct: (id: string) =>
-    api.delete(`/products/${id}`),
+    api.delete(`/admin/products/${id}`),
 
-  // Category management
+  // Category management (admin routes)
   createCategory: (data: FormData) =>
-    api.post('/categories', data, {
+    api.post('/admin/categories', data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
   updateCategory: (id: string, data: FormData) =>
-    api.put(`/categories/${id}`, data, {
+    api.put(`/admin/categories/${id}`, data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
   deleteCategory: (id: string) =>
-    api.delete(`/categories/${id}`),
+    api.delete(`/admin/categories/${id}`),
 };
 
 export default api;

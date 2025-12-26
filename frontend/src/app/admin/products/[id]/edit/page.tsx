@@ -1,35 +1,33 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useForm } from 'react-hook-form';
-import { ArrowLeftIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { ArrowLeftIcon, PhotoIcon, XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { adminAPI, categoryAPI, productAPI } from '@/lib/api';
 import { useUIStore } from '@/store';
+
+interface QuantityOption {
+  _id?: string;
+  quantity: string;
+  price: number;
+  discountPercent: number;
+  discountFlat: number;
+  stock: number;
+  sku: string;
+}
 
 interface ProductForm {
   name: string;
   description: string;
-  price: number;
-  originalPrice?: number;
+  constituents: string;
   category: string;
-  stock: number;
-  unit: string;
-  weight?: number;
-  weightUnit?: string;
-  sku: string;
-  isOrganic: boolean;
+  quantityOptions: QuantityOption[];
+  metaTitle: string;
+  metaDescription: string;
   isFeatured: boolean;
   isActive: boolean;
-  tags: string;
-  nutritionalInfo: {
-    calories?: number;
-    protein?: number;
-    carbs?: number;
-    fat?: number;
-    fiber?: number;
-  };
 }
 
 interface Category {
@@ -38,12 +36,15 @@ interface Category {
 }
 
 interface ExistingImage {
+  _id: string;
   url: string;
   publicId: string;
+  isPrimary: boolean;
 }
 
-export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function EditProductPage() {
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
   const { addToast } = useUIStore();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -57,9 +58,22 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const {
     register,
     handleSubmit,
+    control,
     reset,
     formState: { errors },
-  } = useForm<ProductForm>();
+    watch,
+  } = useForm<ProductForm>({
+    defaultValues: {
+      quantityOptions: [],
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'quantityOptions',
+  });
+
+  const quantityOptions = watch('quantityOptions');
 
   useEffect(() => {
     fetchData();
@@ -67,34 +81,49 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   const fetchData = async () => {
     try {
-      const [productRes, categoriesRes] = await Promise.all([
-        productAPI.getBySlug(id), // The API might accept ID or slug
+      // First try to get by ID, then by slug
+      let productRes;
+      try {
+        productRes = await productAPI.getById(id);
+      } catch {
+        productRes = await productAPI.getBySlug(id);
+      }
+
+      const [categoriesRes] = await Promise.all([
         categoryAPI.getAll(),
       ]);
 
-      const product = productRes.data.product;
-      setCategories(categoriesRes.data.categories);
+      const productData = productRes.data.data || productRes.data;
+      const product = productData.product;
+      const categoriesData = categoriesRes.data.data || categoriesRes.data;
+      setCategories(categoriesData.categories || []);
       setExistingImages(product.images || []);
+
+      // Map quantity options to form format
+      const formQuantityOptions = (product.quantityOptions || []).map((opt: any) => ({
+        _id: opt._id,
+        quantity: opt.quantity,
+        price: opt.price,
+        discountPercent: opt.discountPercent || 0,
+        discountFlat: opt.discountFlat || 0,
+        stock: opt.stock,
+        sku: opt.sku || '',
+      }));
 
       reset({
         name: product.name,
         description: product.description,
-        price: product.price,
-        originalPrice: product.originalPrice,
+        constituents: product.constituents || '',
         category: product.category?._id || product.category,
-        stock: product.stock,
-        unit: product.unit,
-        weight: product.weight,
-        weightUnit: product.weightUnit,
-        sku: product.sku,
-        isOrganic: product.isOrganic,
-        isFeatured: product.isFeatured,
-        isActive: product.isActive,
-        tags: product.tags?.join(', ') || '',
-        nutritionalInfo: product.nutritionalInfo || {},
+        quantityOptions: formQuantityOptions,
+        metaTitle: product.metaTitle || '',
+        metaDescription: product.metaDescription || '',
+        isFeatured: product.isFeatured || false,
+        isActive: product.isActive !== false,
       });
-    } catch {
-      addToast('Failed to load product', 'error');
+    } catch (error) {
+      console.error('Error loading product:', error);
+      addToast({ type: 'error', message: 'Failed to load product' });
       router.push('/admin/products');
     } finally {
       setFetching(false);
@@ -106,7 +135,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     const totalImages = existingImages.length - removedImageIds.length + newImages.length;
     
     if (files.length + totalImages > 5) {
-      addToast('Maximum 5 images allowed', 'error');
+      addToast({ type: 'error', message: 'Maximum 5 images allowed' });
       return;
     }
 
@@ -121,12 +150,12 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     });
   }, [existingImages.length, removedImageIds.length, newImages.length, addToast]);
 
-  const removeExistingImage = (publicId: string) => {
-    setRemovedImageIds((prev) => [...prev, publicId]);
+  const removeExistingImage = (imageId: string) => {
+    setRemovedImageIds((prev) => [...prev, imageId]);
   };
 
-  const restoreExistingImage = (publicId: string) => {
-    setRemovedImageIds((prev) => prev.filter((id) => id !== publicId));
+  const restoreExistingImage = (imageId: string) => {
+    setRemovedImageIds((prev) => prev.filter((id) => id !== imageId));
   };
 
   const removeNewImage = (index: number) => {
@@ -134,12 +163,23 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     setNewImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const calculateSellingPrice = (price: number, discountPercent: number, discountFlat: number) => {
+    let discount = (price * discountPercent) / 100;
+    discount += discountFlat;
+    return Math.max(0, price - discount);
+  };
+
   const onSubmit = async (data: ProductForm) => {
     const activeExisting = existingImages.length - removedImageIds.length;
     const totalImages = activeExisting + newImages.length;
 
     if (totalImages === 0) {
-      addToast('Please add at least one image', 'error');
+      addToast({ type: 'error', message: 'Please add at least one image' });
+      return;
+    }
+
+    if (data.quantityOptions.length === 0) {
+      addToast({ type: 'error', message: 'Please add at least one quantity option' });
       return;
     }
 
@@ -149,36 +189,27 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       
       formData.append('name', data.name);
       formData.append('description', data.description);
-      formData.append('price', data.price.toString());
-      if (data.originalPrice) {
-        formData.append('originalPrice', data.originalPrice.toString());
+      if (data.constituents) {
+        formData.append('constituents', data.constituents);
       }
       formData.append('category', data.category);
-      formData.append('stock', data.stock.toString());
-      formData.append('unit', data.unit);
-      if (data.weight) {
-        formData.append('weight', data.weight.toString());
-      }
-      if (data.weightUnit) {
-        formData.append('weightUnit', data.weightUnit);
-      }
-      formData.append('sku', data.sku);
-      formData.append('isOrganic', data.isOrganic.toString());
       formData.append('isFeatured', data.isFeatured.toString());
       formData.append('isActive', data.isActive.toString());
-      
-      if (data.tags) {
-        const tagsArray = data.tags.split(',').map((tag) => tag.trim()).filter(Boolean);
-        formData.append('tags', JSON.stringify(tagsArray));
+      if (data.metaTitle) {
+        formData.append('metaTitle', data.metaTitle);
+      }
+      if (data.metaDescription) {
+        formData.append('metaDescription', data.metaDescription);
       }
       
-      if (data.nutritionalInfo) {
-        formData.append('nutritionalInfo', JSON.stringify(data.nutritionalInfo));
-      }
+      // Add quantity options as JSON string
+      formData.append('quantityOptions', JSON.stringify(data.quantityOptions));
 
-      // Images to remove
+      // Images to delete
       if (removedImageIds.length > 0) {
-        formData.append('removeImages', JSON.stringify(removedImageIds));
+        removedImageIds.forEach(imageId => {
+          formData.append('deleteImages', imageId);
+        });
       }
 
       // New images
@@ -187,11 +218,11 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       });
 
       await adminAPI.updateProduct(id, formData);
-      addToast('Product updated successfully!', 'success');
+      addToast({ type: 'success', message: 'Product updated successfully!' });
       router.push('/admin/products');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update product';
-      addToast(errorMessage, 'error');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update product';
+      addToast({ type: 'error', message: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -259,33 +290,164 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SKU *
+                    Constituents / Ingredients
                   </label>
-                  <input
-                    type="text"
-                    {...register('sku', { required: 'SKU is required' })}
+                  <textarea
+                    {...register('constituents')}
+                    rows={2}
                     className="input"
-                    placeholder="e.g., ORG-TOM-001"
-                  />
-                  {errors.sku && (
-                    <p className="text-red-500 text-sm mt-1">{errors.sku.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tags (comma separated)
-                  </label>
-                  <input
-                    type="text"
-                    {...register('tags')}
-                    className="input"
-                    placeholder="e.g., fresh, local, seasonal"
+                    placeholder="List the ingredients or constituents..."
                   />
                 </div>
               </div>
             </div>
 
+            {/* Quantity Options */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Quantity Options</h2>
+                <button
+                  type="button"
+                  onClick={() => append({ quantity: '', price: 0, discountPercent: 0, discountFlat: 0, stock: 0, sku: '' })}
+                  className="btn-secondary text-sm flex items-center gap-1"
+                >
+                  <PlusIcon className="w-4 h-4" />
+                  Add Option
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {fields.map((field, index) => (
+                  <div key={field.id} className="border rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-medium text-sm text-gray-600">Option {index + 1}</span>
+                      {fields.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          className="text-red-500 hover:text-red-700 p-1"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Quantity Label *
+                        </label>
+                        <input
+                          type="text"
+                          {...register(`quantityOptions.${index}.quantity` as const, { required: 'Required' })}
+                          className="input text-sm"
+                          placeholder="e.g., 250g, 500g, 1kg"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Price (₹) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(`quantityOptions.${index}.price` as const, { 
+                            required: 'Required',
+                            valueAsNumber: true,
+                            min: { value: 0, message: 'Must be positive' }
+                          })}
+                          className="input text-sm"
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Discount %
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(`quantityOptions.${index}.discountPercent` as const, { 
+                            valueAsNumber: true,
+                            min: 0,
+                            max: 100
+                          })}
+                          className="input text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Flat Discount (₹)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          {...register(`quantityOptions.${index}.discountFlat` as const, { 
+                            valueAsNumber: true,
+                            min: 0
+                          })}
+                          className="input text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Stock *
+                        </label>
+                        <input
+                          type="number"
+                          {...register(`quantityOptions.${index}.stock` as const, { 
+                            required: 'Required',
+                            valueAsNumber: true,
+                            min: { value: 0, message: 'Must be >= 0' }
+                          })}
+                          className="input text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          SKU
+                        </label>
+                        <input
+                          type="text"
+                          {...register(`quantityOptions.${index}.sku` as const)}
+                          className="input text-sm"
+                          placeholder="e.g., TOM-250G"
+                        />
+                      </div>
+                    </div>
+                    
+                    {quantityOptions[index] && (
+                      <div className="mt-2 flex items-center gap-4">
+                        <span className="text-sm text-gray-600">
+                          Selling Price: <span className="font-medium text-primary">
+                            ₹{calculateSellingPrice(
+                              quantityOptions[index].price || 0,
+                              quantityOptions[index].discountPercent || 0,
+                              quantityOptions[index].discountFlat || 0
+                            ).toFixed(2)}
+                          </span>
+                        </span>
+                        {quantityOptions[index].stock === 0 && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                            Out of Stock
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Images */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Images</h2>
               
@@ -293,9 +455,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 <div className="flex flex-wrap gap-4">
                   {/* Existing images */}
                   {existingImages.map((image, index) => {
-                    const isRemoved = removedImageIds.includes(image.publicId);
+                    const isRemoved = removedImageIds.includes(image._id);
                     return (
-                      <div key={image.publicId} className="relative">
+                      <div key={image._id} className="relative">
                         <img
                           src={image.url}
                           alt={`Product ${index + 1}`}
@@ -304,22 +466,22 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                           }`}
                         />
                         {index === 0 && !isRemoved && (
-                          <span className="absolute bottom-1 left-1 text-xs bg-primary text-white px-1 rounded">
-                            Main
+                          <span className="absolute bottom-0 left-0 right-0 bg-primary text-white text-xs text-center py-0.5 rounded-b-lg">
+                            Primary
                           </span>
                         )}
                         {isRemoved ? (
                           <button
                             type="button"
-                            onClick={() => restoreExistingImage(image.publicId)}
-                            className="absolute -top-2 -right-2 p-1 bg-green-500 text-white rounded-full hover:bg-green-600 text-xs"
+                            onClick={() => restoreExistingImage(image._id)}
+                            className="absolute -top-2 -right-2 p-1 bg-green-500 text-white rounded-full hover:bg-green-600 text-xs px-2"
                           >
                             Undo
                           </button>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => removeExistingImage(image.publicId)}
+                            onClick={() => removeExistingImage(image._id)}
                             className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                           >
                             <XMarkIcon className="w-4 h-4" />
@@ -337,7 +499,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                         alt={`New ${index + 1}`}
                         className="w-24 h-24 object-cover rounded-lg border border-green-400"
                       />
-                      <span className="absolute bottom-1 left-1 text-xs bg-green-500 text-white px-1 rounded">
+                      <span className="absolute bottom-0 left-0 right-0 bg-green-500 text-white text-xs text-center py-0.5 rounded-b-lg">
                         New
                       </span>
                       <button
@@ -370,173 +532,39 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               </div>
             </div>
 
+            {/* SEO */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Nutritional Information</h2>
+              <h2 className="text-lg font-semibold mb-4">SEO (Optional)</h2>
               
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Calories
+                    Meta Title
                   </label>
                   <input
-                    type="number"
-                    {...register('nutritionalInfo.calories')}
+                    type="text"
+                    {...register('metaTitle')}
                     className="input"
-                    placeholder="kcal"
+                    placeholder="SEO title for search engines"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Protein
+                    Meta Description
                   </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    {...register('nutritionalInfo.protein')}
+                  <textarea
+                    {...register('metaDescription')}
+                    rows={2}
                     className="input"
-                    placeholder="g"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Carbs
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    {...register('nutritionalInfo.carbs')}
-                    className="input"
-                    placeholder="g"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fat
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    {...register('nutritionalInfo.fat')}
-                    className="input"
-                    placeholder="g"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fiber
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    {...register('nutritionalInfo.fiber')}
-                    className="input"
-                    placeholder="g"
+                    placeholder="SEO description for search engines"
                   />
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mt-2">Per 100g serving</p>
             </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Pricing & Stock</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    {...register('price', { 
-                      required: 'Price is required',
-                      min: { value: 0, message: 'Price must be positive' }
-                    })}
-                    className="input"
-                    placeholder="0.00"
-                  />
-                  {errors.price && (
-                    <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Original Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    {...register('originalPrice')}
-                    className="input"
-                    placeholder="For showing discount"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Stock Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    {...register('stock', { 
-                      required: 'Stock is required',
-                      min: { value: 0, message: 'Stock must be positive' }
-                    })}
-                    className="input"
-                    placeholder="0"
-                  />
-                  {errors.stock && (
-                    <p className="text-red-500 text-sm mt-1">{errors.stock.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Unit *
-                  </label>
-                  <select {...register('unit')} className="input">
-                    <option value="kg">Kilogram (kg)</option>
-                    <option value="g">Gram (g)</option>
-                    <option value="piece">Piece</option>
-                    <option value="bunch">Bunch</option>
-                    <option value="pack">Pack</option>
-                    <option value="dozen">Dozen</option>
-                    <option value="litre">Litre</option>
-                    <option value="ml">Millilitre (ml)</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Weight
-                    </label>
-                    <input
-                      type="number"
-                      {...register('weight')}
-                      className="input"
-                      placeholder="500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Weight Unit
-                    </label>
-                    <select {...register('weightUnit')} className="input">
-                      <option value="g">g</option>
-                      <option value="kg">kg</option>
-                      <option value="ml">ml</option>
-                      <option value="l">L</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Organization</h2>
               
@@ -565,15 +593,6 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      {...register('isOrganic')}
-                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Organic Product</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
                       {...register('isFeatured')}
                       className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                     />
@@ -586,10 +605,30 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                       {...register('isActive')}
                       className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                     />
-                    <span className="text-sm font-medium text-gray-700">Active (Visible)</span>
+                    <span className="text-sm font-medium text-gray-700">Active (Visible in store)</span>
                   </label>
                 </div>
               </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Quick Stock Actions</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                Set all quantity options to out of stock:
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentOptions = quantityOptions.map(opt => ({
+                    ...opt,
+                    stock: 0,
+                  }));
+                  reset({ ...watch(), quantityOptions: currentOptions });
+                }}
+                className="btn-secondary w-full text-sm"
+              >
+                Mark All Out of Stock
+              </button>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">

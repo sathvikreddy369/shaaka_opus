@@ -14,7 +14,7 @@ interface Order {
   _id: string;
   orderNumber: string;
   status: string;
-  items: { product: { name: string }; quantity: number }[];
+  items: { productSnapshot: { name: string }; quantity: number }[];
   total: number;
   createdAt: string;
 }
@@ -35,8 +35,9 @@ export default function OrdersPage() {
       setIsLoading(true);
       try {
         const response = await orderAPI.getAll({ page: currentPage, limit: 10 });
-        setOrders(response.data.orders || []);
-        setTotalPages(response.data.pages || 1);
+        const data = response.data.data || response.data;
+        setOrders(data.orders || []);
+        setTotalPages(data.pagination?.pages || data.pages || 1);
       } catch (error) {
         console.error('Error fetching orders:', error);
       } finally {
@@ -119,7 +120,7 @@ export default function OrdersPage() {
                 {order.items.length} item{order.items.length > 1 ? 's' : ''} •{' '}
                 {order.items
                   .slice(0, 2)
-                  .map((item) => item.product.name)
+                  .map((item) => item.productSnapshot?.name || 'Product')
                   .join(', ')}
                 {order.items.length > 2 && ` +${order.items.length - 2} more`}
               </p>

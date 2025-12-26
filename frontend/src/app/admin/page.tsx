@@ -17,8 +17,11 @@ interface DashboardData {
   overview: {
     totalRevenue: number;
     totalOrders: number;
-    totalCustomers: number;
-    totalProducts: number;
+    totalUsers: number;
+    newUsers: number;
+    pendingOrders: number;
+    deliveredOrders: number;
+    cancelledOrders: number;
   };
   recentOrders: {
     _id: string;
@@ -33,10 +36,7 @@ interface DashboardData {
     name: string;
     stock: number;
   }[];
-  ordersByStatus: {
-    _id: string;
-    count: number;
-  }[];
+  ordersByStatus: Record<string, number>;
 }
 
 const statCards = [
@@ -45,28 +45,28 @@ const statCards = [
     icon: CurrencyRupeeIcon,
     color: 'bg-green-500',
     key: 'totalRevenue',
-    format: (v: number) => formatCurrency(v),
+    format: (v: number | undefined) => formatCurrency(v || 0),
   },
   {
     name: 'Total Orders',
     icon: ShoppingBagIcon,
     color: 'bg-blue-500',
     key: 'totalOrders',
-    format: (v: number) => v.toString(),
+    format: (v: number | undefined) => (v || 0).toString(),
   },
   {
-    name: 'Total Customers',
+    name: 'Total Users',
     icon: UsersIcon,
     color: 'bg-purple-500',
-    key: 'totalCustomers',
-    format: (v: number) => v.toString(),
+    key: 'totalUsers',
+    format: (v: number | undefined) => (v || 0).toString(),
   },
   {
-    name: 'Total Products',
+    name: 'Delivered Orders',
     icon: CubeIcon,
     color: 'bg-orange-500',
-    key: 'totalProducts',
-    format: (v: number) => v.toString(),
+    key: 'deliveredOrders',
+    format: (v: number | undefined) => (v || 0).toString(),
   },
 ];
 
@@ -78,7 +78,8 @@ export default function AdminDashboard() {
     const fetchDashboard = async () => {
       try {
         const response = await adminAPI.getDashboard();
-        setData(response.data);
+        const dashboardData = response.data.data || response.data;
+        setData(dashboardData);
       } catch (error) {
         console.error('Error fetching dashboard:', error);
       } finally {
@@ -125,7 +126,7 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-sm text-gray-500">{stat.name}</p>
                 <p className="text-2xl font-bold mt-1">
-                  {stat.format(data.overview[stat.key as keyof typeof data.overview])}
+                  {stat.format(data.overview?.[stat.key as keyof typeof data.overview])}
                 </p>
               </div>
               <div className={`p-3 rounded-lg ${stat.color}`}>
@@ -146,7 +147,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
           <div className="space-y-4">
-            {data.recentOrders.slice(0, 5).map((order) => (
+            {(data.recentOrders || []).slice(0, 5).map((order) => (
               <div
                 key={order._id}
                 className="flex items-center justify-between py-2 border-b last:border-0"
@@ -156,7 +157,7 @@ export default function AdminDashboard() {
                   <p className="text-sm text-gray-500">{order.user?.name || 'N/A'}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium">{formatCurrency(order.total)}</p>
+                  <p className="font-medium">{formatCurrency(order.total || 0)}</p>
                   <p
                     className={`text-xs px-2 py-0.5 rounded-full inline-block ${
                       order.status === 'DELIVERED'
@@ -178,19 +179,19 @@ export default function AdminDashboard() {
         <div className="card p-6">
           <h2 className="font-semibold mb-4">Orders by Status</h2>
           <div className="space-y-4">
-            {data.ordersByStatus.map((status) => (
-              <div key={status._id} className="flex items-center justify-between">
-                <span className="text-gray-600">{status._id}</span>
+            {Object.entries(data.ordersByStatus || {}).map(([status, count]) => (
+              <div key={status} className="flex items-center justify-between">
+                <span className="text-gray-600">{status}</span>
                 <div className="flex items-center gap-2">
                   <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary-500"
                       style={{
-                        width: `${(status.count / data.overview.totalOrders) * 100}%`,
+                        width: `${data.overview?.totalOrders ? ((count as number) / data.overview.totalOrders) * 100 : 0}%`,
                       }}
                     />
                   </div>
-                  <span className="font-medium w-8 text-right">{status.count}</span>
+                  <span className="font-medium w-8 text-right">{count as number}</span>
                 </div>
               </div>
             ))}
@@ -205,7 +206,7 @@ export default function AdminDashboard() {
               View All
             </Link>
           </div>
-          {data.lowStockProducts.length === 0 ? (
+          {!data.lowStockProducts?.length ? (
             <p className="text-gray-500 text-center py-4">No low stock products</p>
           ) : (
             <div className="space-y-4">

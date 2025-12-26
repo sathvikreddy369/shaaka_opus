@@ -3,18 +3,23 @@ import { persist } from 'zustand/middleware';
 import { cartAPI } from '@/lib/api';
 
 export interface CartItem {
+  _id: string;
   product: {
     _id: string;
     name: string;
     slug: string;
-    price: number;
-    discountPrice?: number;
     images: { url: string; publicId: string }[];
+  };
+  quantityOption: {
+    _id: string;
+    quantity: string;
+    price: number;
+    sellingPrice: number;
     stock: number;
-    unit: string;
   };
   quantity: number;
   price: number;
+  subtotal: number;
 }
 
 export interface Cart {
@@ -31,6 +36,22 @@ export interface Cart {
   };
 }
 
+// Calculate cart totals since backend only returns subtotal
+function calculateCartTotals(cart: any): Cart {
+  const subtotal = cart.subtotal || cart.items?.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0) || 0;
+  const discount = cart.discount || 0;
+  const deliveryCharge = subtotal >= 500 ? 0 : 40; // Free delivery above ₹500
+  const total = subtotal - discount + deliveryCharge;
+  
+  return {
+    ...cart,
+    subtotal,
+    discount,
+    deliveryCharge,
+    total,
+  };
+}
+
 interface CartState {
   cart: Cart | null;
   isLoading: boolean;
@@ -38,9 +59,9 @@ interface CartState {
 
   // Actions
   fetchCart: () => Promise<void>;
-  addItem: (productId: string, quantity?: number) => Promise<void>;
-  updateItem: (productId: string, quantity: number) => Promise<void>;
-  removeItem: (productId: string) => Promise<void>;
+  addItem: (productId: string, quantityOptionId: string, quantity?: number) => Promise<void>;
+  updateItem: (itemId: string, quantity: number) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   applyCoupon: (code: string) => Promise<void>;
   removeCoupon: () => Promise<void>;
@@ -57,7 +78,9 @@ export const useCartStore = create<CartState>()(
         set({ isLoading: true });
         try {
           const response = await cartAPI.get();
-          const cart = response.data.cart;
+          const cartData = response.data.data || response.data;
+          const rawCart = cartData.cart;
+          const cart = rawCart ? calculateCartTotals(rawCart) : null;
           set({
             cart,
             itemCount: cart?.items?.reduce((acc: number, item: CartItem) => acc + item.quantity, 0) || 0,
@@ -69,11 +92,13 @@ export const useCartStore = create<CartState>()(
         }
       },
 
-      addItem: async (productId, quantity = 1) => {
+      addItem: async (productId, quantityOptionId, quantity = 1) => {
         set({ isLoading: true });
         try {
-          const response = await cartAPI.addItem(productId, quantity);
-          const cart = response.data.cart;
+          const response = await cartAPI.addItem(productId, quantityOptionId, quantity);
+          const cartData = response.data.data || response.data;
+          const rawCart = cartData.cart;
+          const cart = calculateCartTotals(rawCart);
           set({
             cart,
             itemCount: cart.items.reduce((acc: number, item: CartItem) => acc + item.quantity, 0),
@@ -83,11 +108,13 @@ export const useCartStore = create<CartState>()(
         }
       },
 
-      updateItem: async (productId, quantity) => {
+      updateItem: async (itemId, quantity) => {
         set({ isLoading: true });
         try {
-          const response = await cartAPI.updateItem(productId, quantity);
-          const cart = response.data.cart;
+          const response = await cartAPI.updateItem(itemId, quantity);
+          const cartData = response.data.data || response.data;
+          const rawCart = cartData.cart;
+          const cart = calculateCartTotals(rawCart);
           set({
             cart,
             itemCount: cart.items.reduce((acc: number, item: CartItem) => acc + item.quantity, 0),
@@ -97,11 +124,13 @@ export const useCartStore = create<CartState>()(
         }
       },
 
-      removeItem: async (productId) => {
+      removeItem: async (itemId) => {
         set({ isLoading: true });
         try {
-          const response = await cartAPI.removeItem(productId);
-          const cart = response.data.cart;
+          const response = await cartAPI.removeItem(itemId);
+          const cartData = response.data.data || response.data;
+          const rawCart = cartData.cart;
+          const cart = rawCart ? calculateCartTotals(rawCart) : null;
           set({
             cart,
             itemCount: cart?.items?.reduce((acc: number, item: CartItem) => acc + item.quantity, 0) || 0,
@@ -125,7 +154,8 @@ export const useCartStore = create<CartState>()(
         set({ isLoading: true });
         try {
           const response = await cartAPI.applyCoupon(code);
-          set({ cart: response.data.cart });
+          const cartData = response.data.data || response.data;
+          set({ cart: cartData.cart });
         } finally {
           set({ isLoading: false });
         }
@@ -135,7 +165,8 @@ export const useCartStore = create<CartState>()(
         set({ isLoading: true });
         try {
           const response = await cartAPI.removeCoupon();
-          set({ cart: response.data.cart });
+          const cartData = response.data.data || response.data;
+          set({ cart: cartData.cart });
         } finally {
           set({ isLoading: false });
         }

@@ -10,20 +10,31 @@ import {
   ShoppingBagIcon,
   ClockIcon,
   XCircleIcon,
+  StarIcon,
+  ArchiveBoxIcon,
+  UserIcon,
 } from '@heroicons/react/24/outline';
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuthStore, useUIStore } from '@/store';
-import { orderAPI } from '@/lib/api';
+import { orderAPI, reviewAPI } from '@/lib/api';
 import { formatCurrency, formatDateTime, getOrderStatusColor, getOrderStatusLabel } from '@/lib/utils';
 
 interface OrderItem {
-  product: {
-    _id: string;
+  _id: string;
+  product: string;
+  productSnapshot: {
     name: string;
     slug: string;
-    images: { url: string }[];
+    image: string;
+  };
+  quantityOptionSnapshot: {
+    quantity: string;
+    price: number;
+    sellingPrice: number;
   };
   quantity: number;
-  price: number;
+  subtotal: number;
+  isReviewed: boolean;
 }
 
 interface Order {
@@ -31,14 +42,11 @@ interface Order {
   orderNumber: string;
   status: string;
   items: OrderItem[];
-  shippingAddress: {
-    fullName: string;
-    phone: string;
-    addressLine1: string;
-    addressLine2?: string;
-    city: string;
-    state: string;
-    pincode: string;
+  deliveryAddress: {
+    label: string;
+    houseNumber: string;
+    street: string;
+    colony: string;
     landmark?: string;
   };
   paymentMethod: string;
@@ -47,20 +55,26 @@ interface Order {
   discount: number;
   deliveryCharge: number;
   total: number;
-  notes?: string;
+  orderNotes?: string;
+  statusHistory: Array<{
+    status: string;
+    timestamp: string;
+    note?: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
 
 const orderSteps = [
-  { status: 'PENDING', label: 'Pending', icon: ClockIcon },
+  { status: 'PLACED', label: 'Placed', icon: ClockIcon },
   { status: 'CONFIRMED', label: 'Confirmed', icon: CheckCircleIcon },
-  { status: 'PROCESSING', label: 'Processing', icon: ShoppingBagIcon },
-  { status: 'SHIPPED', label: 'Shipped', icon: TruckIcon },
-  { status: 'DELIVERED', label: 'Delivered', icon: CheckCircleIcon },
+  { status: 'PACKED', label: 'Packed', icon: ArchiveBoxIcon },
+  { status: 'READY_TO_DELIVER', label: 'Ready', icon: ShoppingBagIcon },
+  { status: 'HANDED_TO_AGENT', label: 'Out for Delivery', icon: UserIcon },
+  { status: 'DELIVERED', label: 'Delivered', icon: TruckIcon },
 ];
 
-const statusOrder = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+const statusOrder = ['PLACED', 'CONFIRMED', 'PACKED', 'READY_TO_DELIVER', 'HANDED_TO_AGENT', 'DELIVERED'];
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -73,6 +87,13 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
+  
+  // Review state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewingItem, setReviewingItem] = useState<OrderItem | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -81,7 +102,8 @@ export default function OrderDetailPage() {
       setIsLoading(true);
       try {
         const response = await orderAPI.getById(orderId);
-        setOrder(response.data.order);
+        const data = response.data.data || response.data;
+        setOrder(data.order);
       } catch (error) {
         console.error('Error fetching order:', error);
         router.push('/account/orders');
@@ -102,7 +124,8 @@ export default function OrderDetailPage() {
       addToast({ type: 'success', message: 'Order cancelled successfully' });
       // Refresh order data
       const response = await orderAPI.getById(orderId);
-      setOrder(response.data.order);
+      const data = response.data.data || response.data;
+      setOrder(data.order);
     } catch (error: any) {
       addToast({
         type: 'error',
@@ -110,6 +133,43 @@ export default function OrderDetailPage() {
       });
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleOpenReview = (item: OrderItem) => {
+    setReviewingItem(item);
+    setReviewRating(5);
+    setReviewComment('');
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewingItem || !order) return;
+    
+    setIsSubmittingReview(true);
+    try {
+      await reviewAPI.create({
+        productId: reviewingItem.product,
+        orderId: order._id,
+        orderItemId: reviewingItem._id,
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+      
+      addToast({ type: 'success', message: 'Review submitted successfully!' });
+      setShowReviewModal(false);
+      
+      // Refresh order to update isReviewed status
+      const response = await orderAPI.getById(orderId);
+      const data = response.data.data || response.data;
+      setOrder(data.order);
+    } catch (error: any) {
+      addToast({
+        type: 'error',
+        message: error.response?.data?.message || 'Failed to submit review',
+      });
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -152,9 +212,10 @@ export default function OrderDetailPage() {
 
   const currentStatusIndex = statusOrder.indexOf(order.status);
   const isCancelled = order.status === 'CANCELLED';
+  const isDelivered = order.status === 'DELIVERED';
   const canCancel =
     !isCancelled &&
-    ['PENDING', 'CONFIRMED'].includes(order.status) &&
+    ['PLACED', 'CONFIRMED'].includes(order.status) &&
     order.paymentStatus !== 'REFUNDED';
 
   return (
@@ -264,15 +325,15 @@ export default function OrderDetailPage() {
             <h2 className="font-semibold mb-4">Order Items</h2>
             <div className="space-y-4">
               {order.items.map((item) => (
-                <div key={item.product._id} className="flex gap-4">
+                <div key={item._id} className="flex gap-4 border-b pb-4 last:border-0">
                   <Link
-                    href={`/products/${item.product.slug}`}
+                    href={`/products/${item.productSnapshot.slug}`}
                     className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100"
                   >
-                    {item.product.images?.[0]?.url ? (
+                    {item.productSnapshot.image ? (
                       <Image
-                        src={item.product.images[0].url}
-                        alt={item.product.name}
+                        src={item.productSnapshot.image}
+                        alt={item.productSnapshot.name}
                         fill
                         className="object-cover"
                       />
@@ -284,17 +345,36 @@ export default function OrderDetailPage() {
                   </Link>
                   <div className="flex-1">
                     <Link
-                      href={`/products/${item.product.slug}`}
+                      href={`/products/${item.productSnapshot.slug}`}
                       className="font-medium hover:text-primary-600"
                     >
-                      {item.product.name}
+                      {item.productSnapshot.name}
                     </Link>
                     <p className="text-sm text-gray-500">
-                      Qty: {item.quantity} × {formatCurrency(item.price)}
+                      {item.quantityOptionSnapshot.quantity} × {item.quantity}
                     </p>
+                    <p className="text-sm text-gray-500">
+                      ₹{item.quantityOptionSnapshot.sellingPrice} each
+                    </p>
+                    {/* Review button for delivered orders */}
+                    {isDelivered && !item.isReviewed && (
+                      <button
+                        onClick={() => handleOpenReview(item)}
+                        className="mt-2 text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                      >
+                        <StarIcon className="h-4 w-4" />
+                        Write a Review
+                      </button>
+                    )}
+                    {item.isReviewed && (
+                      <span className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                        <CheckCircleIcon className="h-4 w-4" />
+                        Reviewed
+                      </span>
+                    )}
                   </div>
                   <p className="font-medium">
-                    {formatCurrency(item.price * item.quantity)}
+                    {formatCurrency(item.subtotal)}
                   </p>
                 </div>
               ))}
@@ -329,29 +409,47 @@ export default function OrderDetailPage() {
               </div>
             </div>
           </div>
+          
+          {/* Status History */}
+          {order.statusHistory && order.statusHistory.length > 0 && (
+            <div className="card p-6 mt-6">
+              <h2 className="font-semibold mb-4">Order Timeline</h2>
+              <div className="space-y-4">
+                {order.statusHistory.map((history, index) => (
+                  <div key={index} className="flex gap-4">
+                    <div className="relative">
+                      <div className={`w-3 h-3 rounded-full ${index === 0 ? 'bg-primary-500' : 'bg-gray-300'}`} />
+                      {index < order.statusHistory.length - 1 && (
+                        <div className="absolute top-3 left-1.5 w-0.5 h-full -ml-px bg-gray-200" />
+                      )}
+                    </div>
+                    <div className="flex-1 pb-4">
+                      <p className="font-medium text-sm">{getOrderStatusLabel(history.status)}</p>
+                      <p className="text-xs text-gray-500">{formatDateTime(history.timestamp)}</p>
+                      {history.note && <p className="text-sm text-gray-600 mt-1">{history.note}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Order info */}
         <div className="md:col-span-1 space-y-6">
-          {/* Shipping address */}
+          {/* Delivery address */}
           <div className="card p-6">
-            <h2 className="font-semibold mb-3">Shipping Address</h2>
-            <p className="font-medium">{order.shippingAddress.fullName}</p>
-            <p className="text-gray-600 text-sm">
-              {order.shippingAddress.phone}
-            </p>
+            <h2 className="font-semibold mb-3">Delivery Address</h2>
+            <p className="font-medium">{order.deliveryAddress.label}</p>
             <p className="text-gray-600 text-sm mt-2">
-              {order.shippingAddress.addressLine1}
-              {order.shippingAddress.addressLine2 &&
-                `, ${order.shippingAddress.addressLine2}`}
+              {order.deliveryAddress.houseNumber}, {order.deliveryAddress.street}
             </p>
             <p className="text-gray-600 text-sm">
-              {order.shippingAddress.city}, {order.shippingAddress.state} -{' '}
-              {order.shippingAddress.pincode}
+              {order.deliveryAddress.colony}
             </p>
-            {order.shippingAddress.landmark && (
+            {order.deliveryAddress.landmark && (
               <p className="text-gray-500 text-sm">
-                Near: {order.shippingAddress.landmark}
+                Landmark: {order.deliveryAddress.landmark}
               </p>
             )}
           </div>
@@ -362,7 +460,7 @@ export default function OrderDetailPage() {
             <p className="text-sm">
               <span className="text-gray-500">Method: </span>
               <span className="font-medium">
-                {order.paymentMethod === 'ONLINE'
+                {order.paymentMethod === 'RAZORPAY'
                   ? 'Online Payment'
                   : 'Cash on Delivery'}
               </span>
@@ -384,14 +482,73 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Notes */}
-          {order.notes && (
+          {order.orderNotes && (
             <div className="card p-6">
               <h2 className="font-semibold mb-3">Order Notes</h2>
-              <p className="text-gray-600 text-sm">{order.notes}</p>
+              <p className="text-gray-600 text-sm">{order.orderNotes}</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && reviewingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Review {reviewingItem.productSnapshot.name}</h3>
+            
+            {/* Rating */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setReviewRating(star)}
+                    className="p-1"
+                  >
+                    {star <= reviewRating ? (
+                      <StarIconSolid className="h-8 w-8 text-yellow-400" />
+                    ) : (
+                      <StarIcon className="h-8 w-8 text-gray-300" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Comment */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Your Review (optional)</label>
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                rows={4}
+                className="input w-full"
+                placeholder="Tell us about your experience with this product..."
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="btn-secondary flex-1"
+                disabled={isSubmittingReview}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitReview}
+                className="btn-primary flex-1"
+                disabled={isSubmittingReview}
+              >
+                {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

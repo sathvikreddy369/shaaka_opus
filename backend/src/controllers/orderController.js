@@ -66,10 +66,6 @@ const createCheckoutOrder = asyncHandler(async (req, res) => {
   const deliveryCharge = calculateDeliveryCharge(subtotal);
   const total = subtotal + deliveryCharge;
 
-  // Use MongoDB transaction for atomic operations
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     // Generate order number
     const orderNumber = await Order.generateOrderNumber();
@@ -77,7 +73,7 @@ const createCheckoutOrder = asyncHandler(async (req, res) => {
     // Create order items with snapshots
     const orderItems = [];
     for (const item of validatedItems) {
-      const product = await Product.findById(item.product._id).session(session);
+      const product = await Product.findById(item.product._id);
       const quantityOption = product.quantityOptions.id(item.quantityOption._id);
 
       // Double-check stock
@@ -89,11 +85,11 @@ const createCheckoutOrder = asyncHandler(async (req, res) => {
 
       // Reserve stock (reduce it)
       quantityOption.stock -= item.quantity;
-      await product.save({ session });
+      await product.save();
 
       // Update product sales count
       product.totalSales += item.quantity;
-      await product.save({ session });
+      await product.save();
 
       orderItems.push({
         product: product._id,
@@ -155,31 +151,27 @@ const createCheckoutOrder = asyncHandler(async (req, res) => {
       orderData.paymentStatus = 'PENDING';
     }
 
-    const order = await Order.create([orderData], { session });
+    const order = await Order.create(orderData);
 
     // Clear cart
     await cart.clearCart();
-    await cart.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
+    await cart.save();
 
     // Return response
     const response = {
       order: {
-        _id: order[0]._id,
-        orderNumber: order[0].orderNumber,
-        total: order[0].total,
-        paymentMethod: order[0].paymentMethod,
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        paymentMethod: order.paymentMethod,
       },
     };
 
     if (razorpayOrder) {
-      response.razorpay = {
-        orderId: razorpayOrder.id,
+      response.razorpayOrder = {
+        id: razorpayOrder.id,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
-        keyId: config.razorpay.keyId,
       };
     }
 
@@ -188,8 +180,6 @@ const createCheckoutOrder = asyncHandler(async (req, res) => {
     }, 'Order created');
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     throw error;
   }
 });

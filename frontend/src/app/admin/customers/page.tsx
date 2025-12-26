@@ -59,10 +59,11 @@ export default function AdminCustomersPage() {
         role: roleFilter || undefined,
         search: search || undefined,
       });
-      setUsers(response.data.users);
-      setTotalPages(response.data.pagination.pages);
+      const data = response.data.data || response.data;
+      setUsers(data.users || []);
+      setTotalPages(data.pagination?.pages || 1);
     } catch {
-      addToast('Failed to load customers', 'error');
+      addToast({ type: 'error', message: 'Failed to load customers' });
     } finally {
       setLoading(false);
     }
@@ -81,10 +82,10 @@ export default function AdminCustomersPage() {
       setUsers((prev) =>
         prev.map((u) => (u._id === userId ? { ...u, role: newRole } : u))
       );
-      addToast('User role updated successfully', 'success');
+      addToast({ type: 'success', message: 'User role updated successfully' });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update role';
-      addToast(errorMessage, 'error');
+      addToast({ type: 'error', message: errorMessage });
     } finally {
       setUpdatingRole(null);
     }

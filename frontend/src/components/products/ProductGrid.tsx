@@ -2,15 +2,23 @@
 
 import ProductCard from './ProductCard';
 
+interface QuantityOption {
+  _id: string;
+  quantity: string;
+  price: number;
+  sellingPrice: number;
+  discountPercent: number;
+  discountFlat: number;
+  stock: number;
+}
+
 interface Product {
   _id: string;
   name: string;
   slug: string;
-  price: number;
-  discountPrice?: number;
   images: { url: string; publicId: string }[];
-  stock: number;
-  unit: string;
+  quantityOptions: QuantityOption[];
+  isOutOfStock: boolean;
   rating?: number;
   numReviews?: number;
 }

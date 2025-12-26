@@ -4,6 +4,16 @@ const { sendOTP } = require('../utils/msg91');
 const { asyncHandler, sendResponse } = require('../utils/helpers');
 const { AuthenticationError, NotFoundError, ValidationError } = require('../utils/errors');
 
+// Test phone numbers that bypass OTP verification (for development/testing)
+const TEST_PHONE_NUMBERS = [
+  '9999999999',
+  '9999999998',
+  '9999999997',
+  '9876543210',
+  '9876543211',
+];
+const TEST_OTP = '123456';
+
 /**
  * @desc    Request OTP for login/signup
  * @route   POST /api/auth/request-otp
@@ -12,14 +22,27 @@ const { AuthenticationError, NotFoundError, ValidationError } = require('../util
 const requestOTP = asyncHandler(async (req, res) => {
   const { phone } = req.body;
 
+  // Check if user exists
+  const existingUser = await User.findOne({ phone });
+
+  // For test numbers, skip actual OTP sending
+  if (TEST_PHONE_NUMBERS.includes(phone)) {
+    console.log(`[TEST MODE] OTP for ${phone}: ${TEST_OTP}`);
+    sendResponse(res, 200, {
+      data: {
+        isNewUser: !existingUser,
+        isProfileComplete: existingUser?.isProfileComplete || false,
+        testMode: true,
+      },
+    }, 'OTP sent successfully (Test Mode - Use 123456)');
+    return;
+  }
+
   // Generate and save OTP
   const otpDoc = await OTP.createOTP(phone);
 
   // Send OTP via MSG91
   await sendOTP(phone, otpDoc.otp);
-
-  // Check if user exists
-  const existingUser = await User.findOne({ phone });
 
   sendResponse(res, 200, {
     data: {
@@ -37,10 +60,17 @@ const requestOTP = asyncHandler(async (req, res) => {
 const verifyOTPAndLogin = asyncHandler(async (req, res) => {
   const { phone, otp, name, email } = req.body;
 
-  // Verify OTP
-  const result = await OTP.verifyOTP(phone, otp);
-  if (!result.success) {
-    throw new ValidationError(result.message);
+  // Check if test number with test OTP
+  const isTestLogin = TEST_PHONE_NUMBERS.includes(phone) && otp === TEST_OTP;
+
+  if (!isTestLogin) {
+    // Verify OTP for non-test numbers
+    const result = await OTP.verifyOTP(phone, otp);
+    if (!result.success) {
+      throw new ValidationError(result.message);
+    }
+    // Delete used OTP
+    await OTP.deleteOne({ _id: result.otpDoc._id });
   }
 
   // Find or create user
@@ -76,9 +106,6 @@ const verifyOTPAndLogin = asyncHandler(async (req, res) => {
   
   // Save refresh token
   await user.addRefreshToken(tokens.refreshToken);
-
-  // Delete used OTP
-  await OTP.deleteOne({ _id: result.otpDoc._id });
 
   sendResponse(res, 200, {
     data: {

@@ -1,23 +1,32 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { HeartIcon, ShoppingCartIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import { useAuthStore, useCartStore, useWishlistStore, useUIStore } from '@/store';
-import { formatCurrency, getDiscountPercentage } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+
+interface QuantityOption {
+  _id: string;
+  quantity: string;
+  price: number;
+  discountPercent: number;
+  discountFlat: number;
+  sellingPrice: number;
+  stock: number;
+}
 
 interface Product {
   _id: string;
   name: string;
   slug: string;
-  price: number;
-  discountPrice?: number;
   images: { url: string; publicId: string }[];
-  stock: number;
-  unit: string;
-  rating?: number;
-  numReviews?: number;
+  quantityOptions: QuantityOption[];
+  isOutOfStock: boolean;
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 interface ProductCardProps {
@@ -30,11 +39,13 @@ export default function ProductCard({ product }: ProductCardProps) {
   const { isInWishlist, toggleItem } = useWishlistStore();
   const { openAuthModal, addToast } = useUIStore();
 
+  // Select the first quantity option by default
+  const [selectedOption, setSelectedOption] = useState(0);
+  const currentOption = product.quantityOptions?.[selectedOption];
+
   const isWishlisted = isInWishlist(product._id);
-  const isOutOfStock = product.stock <= 0;
-  const discount = product.discountPrice
-    ? getDiscountPercentage(product.price, product.discountPrice)
-    : 0;
+  const isOutOfStock = product.isOutOfStock || !currentOption || currentOption.stock <= 0;
+  const discount = currentOption?.discountPercent || 0;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -45,8 +56,16 @@ export default function ProductCard({ product }: ProductCardProps) {
       return;
     }
 
+    if (!currentOption) {
+      addToast({
+        type: 'error',
+        message: 'Please select a quantity option',
+      });
+      return;
+    }
+
     try {
-      await addItem(product._id);
+      await addItem(product._id, currentOption._id, 1);
       addToast({
         type: 'success',
         message: `${product.name} added to cart`,
@@ -84,6 +103,10 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   };
 
+  if (!product.quantityOptions || product.quantityOptions.length === 0) {
+    return null;
+  }
+
   return (
     <Link href={`/products/${product.slug}`} className="group">
       <div className="card p-0 overflow-hidden transition-all duration-300 hover:shadow-lg">
@@ -98,8 +121,8 @@ export default function ProductCard({ product }: ProductCardProps) {
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              No image
+            <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gradient-to-br from-primary-50 to-primary-100">
+              <span className="text-4xl">🌿</span>
             </div>
           )}
 
@@ -137,17 +160,42 @@ export default function ProductCard({ product }: ProductCardProps) {
             {product.name}
           </h3>
 
-          <p className="text-sm text-gray-500 mt-1">{product.unit}</p>
+          {/* Quantity options */}
+          {product.quantityOptions.length > 1 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {product.quantityOptions.map((opt, idx) => (
+                <button
+                  key={opt._id}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedOption(idx);
+                  }}
+                  className={`text-xs px-2 py-1 rounded border ${
+                    selectedOption === idx
+                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  {opt.quantity}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {product.quantityOptions.length === 1 && (
+            <p className="text-sm text-gray-500 mt-1">{currentOption?.quantity}</p>
+          )}
 
           {/* Rating */}
-          {product.rating !== undefined && product.numReviews !== undefined && product.numReviews > 0 && (
+          {product.averageRating !== undefined && product.reviewCount !== undefined && product.reviewCount > 0 && (
             <div className="flex items-center gap-1 mt-2">
               <div className="flex items-center">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <svg
                     key={star}
                     className={`h-4 w-4 ${
-                      star <= Math.round(product.rating!) ? 'text-yellow-400' : 'text-gray-200'
+                      star <= Math.round(product.averageRating!) ? 'text-yellow-400' : 'text-gray-200'
                     }`}
                     fill="currentColor"
                     viewBox="0 0 20 20"
@@ -156,24 +204,24 @@ export default function ProductCard({ product }: ProductCardProps) {
                   </svg>
                 ))}
               </div>
-              <span className="text-sm text-gray-500">({product.numReviews})</span>
+              <span className="text-sm text-gray-500">({product.reviewCount})</span>
             </div>
           )}
 
           {/* Price */}
           <div className="flex items-center gap-2 mt-3">
-            {product.discountPrice ? (
+            {currentOption && currentOption.sellingPrice < currentOption.price ? (
               <>
                 <span className="text-lg font-bold text-primary-600">
-                  {formatCurrency(product.discountPrice)}
+                  {formatCurrency(currentOption.sellingPrice)}
                 </span>
                 <span className="text-sm text-gray-400 line-through">
-                  {formatCurrency(product.price)}
+                  {formatCurrency(currentOption.price)}
                 </span>
               </>
             ) : (
               <span className="text-lg font-bold text-gray-900">
-                {formatCurrency(product.price)}
+                {formatCurrency(currentOption?.price || 0)}
               </span>
             )}
           </div>

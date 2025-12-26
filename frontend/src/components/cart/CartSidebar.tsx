@@ -92,7 +92,7 @@ export default function CartSidebar() {
                         <ul className="space-y-4">
                           {cart.items.map((item) => (
                             <li
-                              key={item.product._id}
+                              key={item._id}
                               className="flex gap-4 p-3 bg-gray-50 rounded-lg"
                             >
                               {/* Product image */}
@@ -125,22 +125,22 @@ export default function CartSidebar() {
                                   {item.product.name}
                                 </Link>
                                 <p className="text-sm text-gray-500 mt-1">
-                                  {item.product.unit}
+                                  {item.quantityOption?.quantity || 'N/A'}
                                 </p>
                                 <div className="flex items-center justify-between mt-2">
                                   <div className="flex items-center gap-2">
-                                    {item.product.discountPrice ? (
+                                    {item.quantityOption?.sellingPrice < item.quantityOption?.price ? (
                                       <>
                                         <span className="font-semibold text-primary-600">
-                                          {formatCurrency(item.product.discountPrice)}
+                                          {formatCurrency(item.quantityOption?.sellingPrice || 0)}
                                         </span>
                                         <span className="text-sm text-gray-400 line-through">
-                                          {formatCurrency(item.product.price)}
+                                          {formatCurrency(item.quantityOption?.price || 0)}
                                         </span>
                                       </>
                                     ) : (
                                       <span className="font-semibold">
-                                        {formatCurrency(item.product.price)}
+                                        {formatCurrency(item.quantityOption?.sellingPrice || item.price || 0)}
                                       </span>
                                     )}
                                   </div>
@@ -151,7 +151,7 @@ export default function CartSidebar() {
                                   <div className="flex items-center border rounded-lg">
                                     <button
                                       onClick={() =>
-                                        handleQuantityChange(item.product._id, item.quantity, -1)
+                                        handleQuantityChange(item._id, item.quantity, -1)
                                       }
                                       disabled={isLoading}
                                       className="p-1.5 hover:bg-gray-100 disabled:opacity-50"
@@ -163,16 +163,16 @@ export default function CartSidebar() {
                                     </span>
                                     <button
                                       onClick={() =>
-                                        handleQuantityChange(item.product._id, item.quantity, 1)
+                                        handleQuantityChange(item._id, item.quantity, 1)
                                       }
-                                      disabled={isLoading || item.quantity >= item.product.stock}
+                                      disabled={isLoading || item.quantity >= (item.quantityOption?.stock || 0)}
                                       className="p-1.5 hover:bg-gray-100 disabled:opacity-50"
                                     >
                                       <PlusIcon className="h-4 w-4" />
                                     </button>
                                   </div>
                                   <button
-                                    onClick={() => removeItem(item.product._id)}
+                                    onClick={() => removeItem(item._id)}
                                     disabled={isLoading}
                                     className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
                                   >

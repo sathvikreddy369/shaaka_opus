@@ -51,7 +51,8 @@ const benefits = [
 async function getCategories() {
   try {
     const response = await categoryAPI.getAll();
-    return response.data.categories || [];
+    const data = response.data.data || response.data;
+    return data.categories || [];
   } catch (error) {
     console.error('Error fetching categories:', error);
     return [];
@@ -61,7 +62,8 @@ async function getCategories() {
 async function getFeaturedProducts() {
   try {
     const response = await productAPI.getFeatured();
-    return response.data.products || [];
+    const data = response.data.data || response.data;
+    return data.products || [];
   } catch (error) {
     console.error('Error fetching featured products:', error);
     return [];

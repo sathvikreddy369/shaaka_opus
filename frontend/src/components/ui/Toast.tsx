@@ -38,13 +38,15 @@ export default function Toast() {
   return (
     <div className="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
       {toasts.map((toast) => {
-        const Icon = icons[toast.type];
+        const toastType = toast.type || 'info';
+        const Icon = icons[toastType];
+        if (!Icon) return null;
         return (
           <div
             key={toast.id}
-            className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg animate-slide-up ${colors[toast.type]}`}
+            className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg animate-slide-up ${colors[toastType]}`}
           >
-            <Icon className={`h-5 w-5 flex-shrink-0 ${iconColors[toast.type]}`} />
+            <Icon className={`h-5 w-5 flex-shrink-0 ${iconColors[toastType]}`} />
             <p className="flex-1 text-sm font-medium">{toast.message}</p>
             <button
               onClick={() => removeToast(toast.id)}

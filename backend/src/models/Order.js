@@ -224,6 +224,11 @@ orderSchema.methods.updateStatus = async function(newStatus, updatedBy, note) {
     this.refundedAt = new Date();
   }
   
+  // Mark COD payment as PAID when delivered
+  if (newStatus === 'DELIVERED' && this.paymentMethod === 'COD') {
+    this.paymentStatus = 'PAID';
+  }
+  
   await this.save();
   return this;
 };

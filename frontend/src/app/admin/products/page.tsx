@@ -47,7 +47,8 @@ export default function AdminProductsPage() {
     const fetchCategories = async () => {
       try {
         const response = await categoryAPI.getAll();
-        setCategories(response.data.categories || []);
+        const data = response.data.data || response.data;
+        setCategories(data.categories || []);
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
@@ -64,9 +65,10 @@ export default function AdminProductsPage() {
         if (selectedCategory) params.category = selectedCategory;
 
         const response = await productAPI.getAll(params);
-        setProducts(response.data.products || []);
-        setTotalPages(response.data.pages || 1);
-        setTotalProducts(response.data.total || 0);
+        const data = response.data.data || response.data;
+        setProducts(data.products || []);
+        setTotalPages(data.pages || data.pagination?.pages || 1);
+        setTotalProducts(data.total || data.pagination?.total || 0);
       } catch (error) {
         console.error('Error fetching products:', error);
       } finally {

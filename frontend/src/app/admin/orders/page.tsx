@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   MagnifyingGlassIcon,
   EyeIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { orderAPI } from '@/lib/api';
 import { useUIStore } from '@/store';
@@ -22,16 +23,33 @@ interface Order {
   createdAt: string;
 }
 
-const statusOptions = [
+const filterStatusOptions = [
   { value: '', label: 'All Status' },
-  { value: 'PENDING', label: 'Pending' },
+  { value: 'PLACED', label: 'Placed' },
   { value: 'CONFIRMED', label: 'Confirmed' },
-  { value: 'PROCESSING', label: 'Processing' },
-  { value: 'SHIPPED', label: 'Shipped' },
-  { value: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
+  { value: 'PACKED', label: 'Packed' },
+  { value: 'READY_TO_DELIVER', label: 'Ready to Deliver' },
+  { value: 'HANDED_TO_AGENT', label: 'Out for Delivery' },
   { value: 'DELIVERED', label: 'Delivered' },
   { value: 'CANCELLED', label: 'Cancelled' },
 ];
+
+// Valid status transitions
+const statusTransitions: Record<string, string[]> = {
+  'PLACED': ['CONFIRMED', 'CANCELLED'],
+  'CONFIRMED': ['PACKED', 'CANCELLED'],
+  'PACKED': ['READY_TO_DELIVER', 'CANCELLED'],
+  'READY_TO_DELIVER': ['HANDED_TO_AGENT'],
+  'HANDED_TO_AGENT': ['DELIVERED'],
+  'DELIVERED': [],
+  'CANCELLED': [],
+  'REFUND_INITIATED': [],
+  'REFUNDED': [],
+};
+
+function getNextStatusOptions(currentStatus: string): string[] {
+  return statusTransitions[currentStatus] || [];
+}
 
 export default function AdminOrdersPage() {
   const { addToast } = useUIStore();
@@ -51,9 +69,10 @@ export default function AdminOrdersPage() {
         if (selectedStatus) params.status = selectedStatus;
 
         const response = await orderAPI.getAllAdmin(params);
-        setOrders(response.data.orders || []);
-        setTotalPages(response.data.pages || 1);
-        setTotalOrders(response.data.total || 0);
+        const data = response.data.data || response.data;
+        setOrders(data.orders || []);
+        setTotalPages(data.pages || data.pagination?.pages || 1);
+        setTotalOrders(data.total || data.pagination?.total || 0);
       } catch (error) {
         console.error('Error fetching orders:', error);
       } finally {
@@ -100,7 +119,7 @@ export default function AdminOrdersPage() {
           }}
           className="input md:w-48"
         >
-          {statusOptions.map((option) => (
+          {filterStatusOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -166,14 +185,14 @@ export default function AdminOrdersPage() {
                       <p className="text-sm text-gray-500">{order.user?.phone}</p>
                     </td>
                     <td className="px-4 py-4 text-sm">
-                      {order.items.reduce((acc, item) => acc + item.quantity, 0)} items
+                      {(order.items || []).reduce((acc, item) => acc + item.quantity, 0)} items
                     </td>
                     <td className="px-4 py-4 font-medium">
                       {formatCurrency(order.total)}
                     </td>
                     <td className="px-4 py-4">
                       <p className="text-sm">
-                        {order.paymentMethod === 'ONLINE' ? 'Online' : 'COD'}
+                        {order.paymentMethod === 'RAZORPAY' ? 'Online' : 'COD'}
                       </p>
                       <p
                         className={`text-xs ${
@@ -188,22 +207,30 @@ export default function AdminOrdersPage() {
                       </p>
                     </td>
                     <td className="px-4 py-4">
-                      <select
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(order._id, e.target.value)}
-                        className={`text-sm font-medium px-2 py-1 rounded border ${getOrderStatusColor(
-                          order.status
-                        )}`}
-                        disabled={
-                          order.status === 'CANCELLED' || order.status === 'DELIVERED'
-                        }
-                      >
-                        {statusOptions.slice(1).map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex flex-col gap-2">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full inline-block w-fit ${getOrderStatusColor(order.status)}`}>
+                          {getOrderStatusLabel(order.status)}
+                        </span>
+                        {getNextStatusOptions(order.status).length > 0 && (
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleStatusChange(order._id, e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                            className="text-xs px-2 py-1 rounded border border-gray-300 bg-white"
+                            defaultValue=""
+                          >
+                            <option value="">Update status...</option>
+                            {getNextStatusOptions(order.status).map((status) => (
+                              <option key={status} value={status}>
+                                → {getOrderStatusLabel(status)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-500">
                       {formatDateTime(order.createdAt)}

@@ -106,7 +106,7 @@ export default function CartPage() {
         {/* Cart items */}
         <div className="lg:col-span-2 space-y-4">
           {cart.items.map((item) => (
-            <div key={item.product._id} className="card p-4 flex gap-4">
+            <div key={item._id} className="card p-4 flex gap-4">
               {/* Product image */}
               <Link
                 href={`/products/${item.product.slug}`}
@@ -134,21 +134,21 @@ export default function CartPage() {
                 >
                   {item.product.name}
                 </Link>
-                <p className="text-sm text-gray-500 mt-1">{item.product.unit}</p>
+                <p className="text-sm text-gray-500 mt-1">{item.quantityOption?.quantity || 'N/A'}</p>
 
                 <div className="flex items-center gap-2 mt-2">
-                  {item.product.discountPrice ? (
+                  {item.quantityOption?.sellingPrice < item.quantityOption?.price ? (
                     <>
                       <span className="font-semibold text-primary-600">
-                        {formatCurrency(item.product.discountPrice)}
+                        {formatCurrency(item.quantityOption?.sellingPrice || 0)}
                       </span>
                       <span className="text-sm text-gray-400 line-through">
-                        {formatCurrency(item.product.price)}
+                        {formatCurrency(item.quantityOption?.price || 0)}
                       </span>
                     </>
                   ) : (
                     <span className="font-semibold">
-                      {formatCurrency(item.product.price)}
+                      {formatCurrency(item.quantityOption?.sellingPrice || item.price || 0)}
                     </span>
                   )}
                 </div>
@@ -158,7 +158,7 @@ export default function CartPage() {
                   <div className="flex items-center border rounded-lg">
                     <button
                       onClick={() =>
-                        handleQuantityChange(item.product._id, item.quantity, -1)
+                        handleQuantityChange(item._id, item.quantity, -1)
                       }
                       disabled={isLoading}
                       className="p-2 hover:bg-gray-100 disabled:opacity-50"
@@ -170,16 +170,16 @@ export default function CartPage() {
                     </span>
                     <button
                       onClick={() =>
-                        handleQuantityChange(item.product._id, item.quantity, 1)
+                        handleQuantityChange(item._id, item.quantity, 1)
                       }
-                      disabled={isLoading || item.quantity >= item.product.stock}
+                      disabled={isLoading || item.quantity >= (item.quantityOption?.stock || 0)}
                       className="p-2 hover:bg-gray-100 disabled:opacity-50"
                     >
                       <PlusIcon className="h-4 w-4" />
                     </button>
                   </div>
                   <button
-                    onClick={() => handleRemoveItem(item.product._id)}
+                    onClick={() => handleRemoveItem(item._id)}
                     disabled={isLoading}
                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
                   >
@@ -193,7 +193,7 @@ export default function CartPage() {
                 <div className="flex items-center border rounded-lg">
                   <button
                     onClick={() =>
-                      handleQuantityChange(item.product._id, item.quantity, -1)
+                      handleQuantityChange(item._id, item.quantity, -1)
                     }
                     disabled={isLoading}
                     className="p-2 hover:bg-gray-100 disabled:opacity-50"
@@ -205,9 +205,9 @@ export default function CartPage() {
                   </span>
                   <button
                     onClick={() =>
-                      handleQuantityChange(item.product._id, item.quantity, 1)
+                      handleQuantityChange(item._id, item.quantity, 1)
                     }
-                    disabled={isLoading || item.quantity >= item.product.stock}
+                    disabled={isLoading || item.quantity >= (item.quantityOption?.stock || 0)}
                     className="p-2 hover:bg-gray-100 disabled:opacity-50"
                   >
                     <PlusIcon className="h-4 w-4" />
@@ -216,12 +216,12 @@ export default function CartPage() {
 
                 <div className="text-right min-w-[6rem]">
                   <p className="font-semibold">
-                    {formatCurrency(item.price * item.quantity)}
+                    {formatCurrency(item.subtotal || (item.quantityOption?.sellingPrice * item.quantity))}
                   </p>
                 </div>
 
                 <button
-                  onClick={() => handleRemoveItem(item.product._id)}
+                  onClick={() => handleRemoveItem(item._id)}
                   disabled={isLoading}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
                 >

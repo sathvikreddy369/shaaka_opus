@@ -48,11 +48,11 @@ export default function EditProfilePage() {
         email: data.email,
       });
       setUser(response.data.user);
-      addToast('Profile updated successfully!', 'success');
+      addToast({ type: 'success', message: 'Profile updated successfully!' });
       router.push('/account');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
-      addToast(errorMessage, 'error');
+      addToast({ type: 'error', message: errorMessage });
     } finally {
       setLoading(false);
     }

@@ -8,19 +8,26 @@ import { productAPI, categoryAPI } from '@/lib/api';
 import ProductCard from '@/components/products/ProductCard';
 import ProductGrid from '@/components/products/ProductGrid';
 
+interface QuantityOption {
+  _id: string;
+  quantity: string;
+  price: number;
+  sellingPrice: number;
+  discountPercent: number;
+  discountFlat: number;
+  stock: number;
+}
+
 interface Product {
   _id: string;
   name: string;
   slug: string;
-  price: number;
-  originalPrice?: number;
-  images: Array<{ url: string }>;
+  images: Array<{ url: string; publicId: string }>;
+  quantityOptions: QuantityOption[];
+  isOutOfStock: boolean;
   category: { name: string; slug: string };
-  stock: number;
-  unit: string;
-  isOrganic: boolean;
-  rating: number;
-  reviewCount: number;
+  rating?: number;
+  numReviews?: number;
 }
 
 interface Category {
@@ -59,7 +66,8 @@ function SearchContent() {
   const fetchCategories = async () => {
     try {
       const response = await categoryAPI.getAll();
-      setCategories(response.data.categories);
+      const categoriesData = response.data.data || response.data;
+      setCategories(categoriesData.categories || []);
     } catch (error) {
       console.error('Failed to load categories:', error);
     }
@@ -77,9 +85,10 @@ function SearchContent() {
         page,
         limit: 12,
       });
-      setProducts(response.data.products);
-      setTotalPages(response.data.pagination.pages);
-      setTotalResults(response.data.pagination.total);
+      const productsData = response.data.data || response.data;
+      setProducts(productsData.products || []);
+      setTotalPages(productsData.pagination?.pages || 1);
+      setTotalResults(productsData.pagination?.total || 0);
     } catch (error) {
       console.error('Failed to search products:', error);
     } finally {
@@ -255,11 +264,7 @@ function SearchContent() {
               </div>
             ) : (
               <>
-                <ProductGrid>
-                  {products.map((product) => (
-                    <ProductCard key={product._id} product={product} />
-                  ))}
-                </ProductGrid>
+                <ProductGrid products={products} />
 
                 {/* Pagination */}
                 {totalPages > 1 && (

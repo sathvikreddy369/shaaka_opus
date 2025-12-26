@@ -63,13 +63,14 @@ export function debounce<T extends (...args: any[]) => any>(
 
 export function getOrderStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    PENDING: 'bg-yellow-100 text-yellow-800',
+    PLACED: 'bg-yellow-100 text-yellow-800',
     CONFIRMED: 'bg-blue-100 text-blue-800',
-    PROCESSING: 'bg-indigo-100 text-indigo-800',
-    SHIPPED: 'bg-purple-100 text-purple-800',
-    OUT_FOR_DELIVERY: 'bg-cyan-100 text-cyan-800',
+    PACKED: 'bg-indigo-100 text-indigo-800',
+    READY_TO_DELIVER: 'bg-purple-100 text-purple-800',
+    HANDED_TO_AGENT: 'bg-cyan-100 text-cyan-800',
     DELIVERED: 'bg-green-100 text-green-800',
     CANCELLED: 'bg-red-100 text-red-800',
+    REFUND_INITIATED: 'bg-orange-100 text-orange-800',
     REFUNDED: 'bg-gray-100 text-gray-800',
     PAYMENT_FAILED: 'bg-red-100 text-red-800',
   };
@@ -78,13 +79,14 @@ export function getOrderStatusColor(status: string): string {
 
 export function getOrderStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    PENDING: 'Pending',
+    PLACED: 'Placed',
     CONFIRMED: 'Confirmed',
-    PROCESSING: 'Processing',
-    SHIPPED: 'Shipped',
-    OUT_FOR_DELIVERY: 'Out for Delivery',
+    PACKED: 'Packed',
+    READY_TO_DELIVER: 'Ready to Deliver',
+    HANDED_TO_AGENT: 'Out for Delivery',
     DELIVERED: 'Delivered',
     CANCELLED: 'Cancelled',
+    REFUND_INITIATED: 'Refund Initiated',
     REFUNDED: 'Refunded',
     PAYMENT_FAILED: 'Payment Failed',
   };

@@ -12,25 +12,33 @@ interface Category {
   slug: string;
 }
 
+interface QuantityOption {
+  _id: string;
+  quantity: string;
+  price: number;
+  discountPercent: number;
+  discountFlat: number;
+  sellingPrice: number;
+  stock: number;
+}
+
 interface Product {
   _id: string;
   name: string;
   slug: string;
-  price: number;
-  discountPrice?: number;
   images: { url: string; publicId: string }[];
-  stock: number;
-  unit: string;
-  rating?: number;
-  numReviews?: number;
+  quantityOptions: QuantityOption[];
+  isOutOfStock: boolean;
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 const sortOptions = [
-  { value: '-createdAt', label: 'Newest' },
-  { value: 'price', label: 'Price: Low to High' },
-  { value: '-price', label: 'Price: High to Low' },
-  { value: '-rating', label: 'Top Rated' },
-  { value: 'name', label: 'Name: A-Z' },
+  { value: 'newest', label: 'Newest' },
+  { value: 'price-asc', label: 'Price: Low to High' },
+  { value: 'price-desc', label: 'Price: High to Low' },
+  { value: 'rating', label: 'Top Rated' },
+  { value: 'popular', label: 'Most Popular' },
 ];
 
 function ProductsPageContent() {
@@ -48,7 +56,7 @@ function ProductsPageContent() {
     searchParams.get('category') || ''
   );
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-  const [sortBy, setSortBy] = useState(searchParams.get('sort') || '-createdAt');
+  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'newest');
   const [priceRange, setPriceRange] = useState({
     min: searchParams.get('minPrice') || '',
     max: searchParams.get('maxPrice') || '',
@@ -61,7 +69,8 @@ function ProductsPageContent() {
     const fetchCategories = async () => {
       try {
         const response = await categoryAPI.getAll();
-        setCategories(response.data.categories || []);
+        const data = response.data.data || response.data;
+        setCategories(data.categories || []);
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
@@ -86,9 +95,10 @@ function ProductsPageContent() {
         if (inStockOnly) params.inStock = true;
 
         const response = await productAPI.getAll(params);
-        setProducts(response.data.products || []);
-        setTotalProducts(response.data.total || 0);
-        setTotalPages(response.data.pages || 1);
+        const responseData = response.data.data || response.data;
+        setProducts(responseData.products || []);
+        setTotalProducts(responseData.pagination?.totalItems || 0);
+        setTotalPages(responseData.pagination?.totalPages || 1);
       } catch (error) {
         console.error('Error fetching products:', error);
         setProducts([]);
@@ -102,7 +112,7 @@ function ProductsPageContent() {
   const clearFilters = () => {
     setSelectedCategory('');
     setSearchQuery('');
-    setSortBy('-createdAt');
+    setSortBy('newest');
     setPriceRange({ min: '', max: '' });
     setInStockOnly(false);
     setCurrentPage(1);

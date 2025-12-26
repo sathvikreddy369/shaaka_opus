@@ -2,12 +2,15 @@ const rateLimit = require('express-rate-limit');
 const config = require('../config');
 const { RateLimitError } = require('../utils/errors');
 
+// Check if we're in development mode
+const isDev = process.env.NODE_ENV === 'development';
+
 /**
  * General API rate limiter
  */
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  max: isDev ? 1000 : 100, // Higher limit for development
   message: {
     success: false,
     message: 'Too many requests, please try again later',
@@ -41,7 +44,7 @@ const otpLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 requests per window
+  max: isDev ? 200 : 20, // Higher limit for development
   message: {
     success: false,
     message: 'Too many authentication attempts, please try again later',

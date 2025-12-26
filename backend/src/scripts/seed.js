@@ -3,6 +3,45 @@ require('dotenv').config();
 const connectDB = require('../config/database');
 const { Category, Product, User } = require('../models');
 
+// Test users that can bypass OTP verification
+const testUsers = [
+  {
+    phone: '9999999999',
+    name: 'Admin User',
+    email: 'admin@shaaka.com',
+    role: 'ADMIN',
+    isProfileComplete: true,
+  },
+  {
+    phone: '9999999998',
+    name: 'Test User',
+    email: 'user@shaaka.com',
+    role: 'USER',
+    isProfileComplete: true,
+  },
+  {
+    phone: '9999999997',
+    name: 'Test User 2',
+    email: 'user2@shaaka.com',
+    role: 'USER',
+    isProfileComplete: true,
+  },
+  {
+    phone: '9876543210',
+    name: 'Demo Admin',
+    email: 'demo@shaaka.com',
+    role: 'ADMIN',
+    isProfileComplete: true,
+  },
+  {
+    phone: '9876543211',
+    name: 'Demo User',
+    email: 'demouser@shaaka.com',
+    role: 'USER',
+    isProfileComplete: true,
+  },
+];
+
 const categories = [
   {
     name: 'Spices',
@@ -228,8 +267,23 @@ const seedDatabase = async () => {
     await Category.deleteMany({});
     await Product.deleteMany({});
 
+    // Seed test users
+    console.log('Seeding test users...');
+    for (const userData of testUsers) {
+      const existingUser = await User.findOne({ phone: userData.phone });
+      if (existingUser) {
+        // Update existing user
+        Object.assign(existingUser, userData);
+        await existingUser.save();
+        console.log(`Updated user: ${userData.phone} (${userData.role})`);
+      } else {
+        await User.create(userData);
+        console.log(`Created user: ${userData.phone} (${userData.role})`);
+      }
+    }
+
     // Seed categories
-    console.log('Seeding categories...');
+    console.log('\nSeeding categories...');
     const createdCategories = await Category.insertMany(categories);
     console.log(`Created ${createdCategories.length} categories`);
 
@@ -273,8 +327,19 @@ const seedDatabase = async () => {
 
     console.log('\n✅ Database seeded successfully!');
     console.log('\nSeeded data:');
+    console.log(`- ${testUsers.length} test users`);
     console.log(`- ${createdCategories.length} categories`);
     console.log(`- ${createdProducts.length} products`);
+    
+    console.log('\n📱 Test Login Credentials (OTP bypass enabled):');
+    console.log('┌─────────────────┬──────────────┬────────┐');
+    console.log('│ Phone           │ Name         │ Role   │');
+    console.log('├─────────────────┼──────────────┼────────┤');
+    testUsers.forEach(u => {
+      console.log(`│ ${u.phone.padEnd(15)} │ ${u.name.padEnd(12)} │ ${u.role.padEnd(6)} │`);
+    });
+    console.log('└─────────────────┴──────────────┴────────┘');
+    console.log('\n💡 Use OTP: 123456 for these test numbers');
 
     process.exit(0);
   } catch (error) {

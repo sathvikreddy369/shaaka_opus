@@ -59,9 +59,10 @@ export default function AdminCategoriesPage() {
   const fetchCategories = async () => {
     try {
       const response = await categoryAPI.getAll();
-      setCategories(response.data.categories);
+      const data = response.data.data || response.data;
+      setCategories(data.categories || []);
     } catch {
-      addToast('Failed to load categories', 'error');
+      addToast({ type: 'error', message: 'Failed to load categories' });
     } finally {
       setLoading(false);
     }
@@ -122,17 +123,17 @@ export default function AdminCategoriesPage() {
 
       if (editingCategory) {
         await adminAPI.updateCategory(editingCategory._id, formData);
-        addToast('Category updated successfully!', 'success');
+        addToast({ type: 'success', message: 'Category updated successfully!' });
       } else {
         await adminAPI.createCategory(formData);
-        addToast('Category created successfully!', 'success');
+        addToast({ type: 'success', message: 'Category created successfully!' });
       }
 
       setModalOpen(false);
       fetchCategories();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save category';
-      addToast(errorMessage, 'error');
+      addToast({ type: 'error', message: errorMessage });
     } finally {
       setSubmitting(false);
     }
@@ -141,11 +142,11 @@ export default function AdminCategoriesPage() {
   const handleDelete = async (id: string) => {
     try {
       await adminAPI.deleteCategory(id);
-      addToast('Category deleted successfully!', 'success');
+      addToast({ type: 'success', message: 'Category deleted successfully!' });
       setCategories((prev) => prev.filter((c) => c._id !== id));
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete category';
-      addToast(errorMessage, 'error');
+      addToast({ type: 'error', message: errorMessage });
     } finally {
       setDeleteConfirm(null);
     }

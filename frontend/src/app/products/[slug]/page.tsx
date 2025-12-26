@@ -20,17 +20,25 @@ import { productAPI, reviewAPI } from '@/lib/api';
 import { formatCurrency, getDiscountPercentage, formatDate } from '@/lib/utils';
 import ProductGrid from '@/components/products/ProductGrid';
 
+interface QuantityOption {
+  _id: string;
+  quantity: string;
+  price: number;
+  sellingPrice: number;
+  discountPercent: number;
+  discountFlat: number;
+  stock: number;
+}
+
 interface Product {
   _id: string;
   name: string;
   slug: string;
   description: string;
-  price: number;
-  discountPrice?: number;
+  quantityOptions: QuantityOption[];
   images: { url: string; publicId: string }[];
   category: { _id: string; name: string; slug: string };
-  stock: number;
-  unit: string;
+  isOutOfStock: boolean;
   weight?: string;
   nutritionInfo?: string;
   ingredients?: string;
@@ -62,6 +70,7 @@ export default function ProductDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [selectedOption, setSelectedOption] = useState<QuantityOption | null>(null);
   const [activeTab, setActiveTab] = useState<'description' | 'reviews'>('description');
 
   useEffect(() => {
@@ -69,24 +78,33 @@ export default function ProductDetailPage() {
       setIsLoading(true);
       try {
         const response = await productAPI.getBySlug(slug);
-        setProduct(response.data.product);
+        const productData = response.data.data?.product || response.data.product;
+        setProduct(productData);
+        
+        // Set default selected option
+        if (productData?.quantityOptions?.length > 0) {
+          const defaultOption = productData.quantityOptions.find((opt: QuantityOption) => opt.stock > 0) || productData.quantityOptions[0];
+          setSelectedOption(defaultOption);
+        }
 
         // Fetch related products from the same category
-        if (response.data.product.category) {
+        if (productData?.category) {
           const relatedResponse = await productAPI.getAll({
-            category: response.data.product.category.slug,
+            category: productData.category.slug,
             limit: 4,
           });
+          const relatedData = relatedResponse.data.data || relatedResponse.data;
           setRelatedProducts(
-            relatedResponse.data.products.filter(
-              (p: Product) => p._id !== response.data.product._id
+            (relatedData.products || []).filter(
+              (p: Product) => p._id !== productData._id
             )
           );
         }
 
         // Fetch reviews
-        const reviewsResponse = await reviewAPI.getByProduct(response.data.product._id);
-        setReviews(reviewsResponse.data.reviews || []);
+        const reviewsResponse = await reviewAPI.getByProduct(productData._id);
+        const reviewsData = reviewsResponse.data.data || reviewsResponse.data;
+        setReviews(reviewsData.reviews || []);
       } catch (error) {
         console.error('Error fetching product:', error);
       } finally {
@@ -130,10 +148,9 @@ export default function ProductDetailPage() {
   }
 
   const isWishlisted = isInWishlist(product._id);
-  const isOutOfStock = product.stock <= 0;
-  const discount = product.discountPrice
-    ? getDiscountPercentage(product.price, product.discountPrice)
-    : 0;
+  const currentOption = selectedOption || product.quantityOptions?.[0];
+  const isOutOfStock = product.isOutOfStock || !currentOption || currentOption.stock <= 0;
+  const discount = currentOption?.discountPercent || 0;
 
   const handleAddToCart = async () => {
     if (!isAuthenticated) {
@@ -141,8 +158,16 @@ export default function ProductDetailPage() {
       return;
     }
 
+    if (!currentOption) {
+      addToast({
+        type: 'error',
+        message: 'Please select a quantity option',
+      });
+      return;
+    }
+
     try {
-      await addItem(product._id, quantity);
+      await addItem(product._id, currentOption._id, quantity);
       addToast({
         type: 'success',
         message: `${product.name} added to cart`,
@@ -284,23 +309,54 @@ export default function ProductDetailPage() {
 
           {/* Price */}
           <div className="flex items-baseline gap-3 mb-4">
-            {product.discountPrice ? (
+            {currentOption && currentOption.sellingPrice < currentOption.price ? (
               <>
                 <span className="text-3xl font-bold text-primary-600">
-                  {formatCurrency(product.discountPrice)}
+                  {formatCurrency(currentOption.sellingPrice)}
                 </span>
                 <span className="text-xl text-gray-400 line-through">
-                  {formatCurrency(product.price)}
+                  {formatCurrency(currentOption.price)}
                 </span>
               </>
             ) : (
               <span className="text-3xl font-bold text-gray-900">
-                {formatCurrency(product.price)}
+                {formatCurrency(currentOption?.sellingPrice || 0)}
               </span>
             )}
           </div>
 
-          <p className="text-gray-600 mb-2">Unit: {product.unit}</p>
+          {/* Quantity Options Selector */}
+          {product.quantityOptions?.length > 1 && (
+            <div className="mb-4">
+              <p className="text-gray-600 mb-2">Select Size:</p>
+              <div className="flex flex-wrap gap-2">
+                {product.quantityOptions.map((option) => (
+                  <button
+                    key={option._id}
+                    onClick={() => {
+                      setSelectedOption(option);
+                      setQuantity(1);
+                    }}
+                    disabled={option.stock <= 0}
+                    className={`px-4 py-2 rounded-lg border transition-colors ${
+                      selectedOption?._id === option._id
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : option.stock <= 0
+                        ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'border-gray-300 hover:border-primary-300'
+                    }`}
+                  >
+                    {option.quantity}
+                    {option.stock <= 0 && ' (Out of Stock)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {product.quantityOptions?.length === 1 && (
+            <p className="text-gray-600 mb-2">Size: {currentOption?.quantity}</p>
+          )}
           {product.weight && (
             <p className="text-gray-600 mb-4">Weight: {product.weight}</p>
           )}
@@ -309,9 +365,9 @@ export default function ProductDetailPage() {
           <div className="mb-6">
             {isOutOfStock ? (
               <span className="text-red-600 font-medium">Out of Stock</span>
-            ) : product.stock <= 10 ? (
+            ) : currentOption && currentOption.stock <= 10 ? (
               <span className="text-orange-600 font-medium">
-                Only {product.stock} left in stock
+                Only {currentOption.stock} left in stock
               </span>
             ) : (
               <span className="text-green-600 font-medium">In Stock</span>
@@ -333,8 +389,8 @@ export default function ProductDetailPage() {
                 {quantity}
               </span>
               <button
-                onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
-                disabled={quantity >= product.stock}
+                onClick={() => setQuantity((q) => Math.min(currentOption?.stock || 1, q + 1))}
+                disabled={quantity >= (currentOption?.stock || 1)}
                 className="p-3 hover:bg-gray-100 disabled:opacity-50"
               >
                 <PlusIcon className="h-5 w-5" />

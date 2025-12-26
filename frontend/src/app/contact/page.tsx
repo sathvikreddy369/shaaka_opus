@@ -35,10 +35,10 @@ export default function ContactPage() {
       // In a real app, this would send to an API
       console.log('Contact form submitted:', data);
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      addToast('Message sent successfully! We\'ll get back to you soon.', 'success');
+      addToast({ type: 'success', message: 'Message sent successfully! We\'ll get back to you soon.' });
       reset();
     } catch {
-      addToast('Failed to send message. Please try again.', 'error');
+      addToast({ type: 'error', message: 'Failed to send message. Please try again.' });
     } finally {
       setLoading(false);
     }
