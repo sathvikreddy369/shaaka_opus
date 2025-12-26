@@ -12,6 +12,28 @@ const getWishlist = asyncHandler(async (req, res) => {
 
   if (!wishlist) {
     wishlist = await Wishlist.create({ user: req.userId, items: [] });
+    return sendResponse(res, 200, {
+      data: {
+        wishlist: {
+          _id: wishlist._id,
+          items: [],
+          itemCount: 0,
+        },
+      },
+    });
+  }
+
+  // If wishlist is empty, return early
+  if (wishlist.items.length === 0) {
+    return sendResponse(res, 200, {
+      data: {
+        wishlist: {
+          _id: wishlist._id,
+          items: [],
+          itemCount: 0,
+        },
+      },
+    });
   }
 
   const items = await wishlist.getWithDetails();

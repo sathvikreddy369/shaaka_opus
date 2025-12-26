@@ -43,6 +43,24 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Track if we're currently refreshing to prevent multiple refresh attempts
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 // Response interceptor for token refresh
 api.interceptors.response.use(
   (response) => response,
@@ -51,32 +69,69 @@ api.interceptors.response.use(
 
     // If error is 401 and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // If already refreshing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
-        // Try to refresh the token
+        // Get refresh token from localStorage
+        const refreshToken = typeof window !== 'undefined' 
+          ? localStorage.getItem('refreshToken') 
+          : null;
+
+        if (!refreshToken) {
+          throw new Error('No refresh token available');
+        }
+
+        // Try to refresh the token - send refreshToken in body as backend expects
         const response = await axios.post(
           `${API_URL}/auth/refresh-token`,
-          {},
+          { refreshToken },
           { withCredentials: true }
         );
 
-        const { accessToken: newToken } = response.data;
-        setAccessToken(newToken);
+        const responseData = response.data.data || response.data;
+        const { tokens } = responseData;
+        
+        if (!tokens?.accessToken || !tokens?.refreshToken) {
+          throw new Error('Invalid token response');
+        }
+
+        setAccessToken(tokens.accessToken);
+        // Update refresh token in localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('refreshToken', tokens.refreshToken);
+        }
+
+        processQueue(null, tokens.accessToken);
 
         // Retry the original request
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        originalRequest.headers.Authorization = `Bearer ${tokens.accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
+        processQueue(refreshError, null);
         // Refresh failed, clear tokens
         setAccessToken(null);
-        // Optionally trigger auth modal instead of redirect
         if (typeof window !== 'undefined') {
-          // Clear any stored auth state
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
+          // Clear persisted auth state
+          localStorage.removeItem('auth-storage');
         }
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
@@ -104,8 +159,12 @@ export const authAPI = {
   setLocation: (lat: number, lng: number) =>
     api.post('/auth/location', { lat, lng }),
 
-  logout: () =>
-    api.post('/auth/logout'),
+  logout: () => {
+    const refreshToken = typeof window !== 'undefined' 
+      ? localStorage.getItem('refreshToken') 
+      : null;
+    return api.post('/auth/logout', { refreshToken });
+  },
 
   refreshToken: () =>
     api.post('/auth/refresh-token'),

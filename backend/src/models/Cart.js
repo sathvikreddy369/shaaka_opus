@@ -106,14 +106,27 @@ cartSchema.methods.clearCart = async function() {
   return this;
 };
 
-// Method to validate and get current prices
+// Method to validate and get current prices - optimized with batch query
 cartSchema.methods.validateAndGetPrices = async function() {
   const Product = mongoose.model('Product');
   const validatedItems = [];
   const invalidItems = [];
   
+  // Get all unique product IDs
+  const productIds = [...new Set(this.items.map(item => item.product.toString()))];
+  
+  // Single query to fetch all products
+  const products = await Product.find({
+    _id: { $in: productIds }
+  })
+    .select('name slug images quantityOptions isActive')
+    .lean();
+  
+  // Create a map for O(1) lookup
+  const productMap = new Map(products.map(p => [p._id.toString(), p]));
+  
   for (const item of this.items) {
-    const product = await Product.findById(item.product);
+    const product = productMap.get(item.product.toString());
     
     if (!product || !product.isActive) {
       invalidItems.push({
@@ -123,7 +136,9 @@ cartSchema.methods.validateAndGetPrices = async function() {
       continue;
     }
     
-    const quantityOption = product.quantityOptions.id(item.quantityOptionId);
+    const quantityOption = product.quantityOptions.find(
+      opt => opt._id.toString() === item.quantityOptionId.toString()
+    );
     
     if (!quantityOption) {
       invalidItems.push({
@@ -149,13 +164,16 @@ cartSchema.methods.validateAndGetPrices = async function() {
       continue;
     }
     
+    // Get primary image
+    const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0] || null;
+    
     validatedItems.push({
       itemId: item._id,
       product: {
         _id: product._id,
         name: product.name,
         slug: product.slug,
-        image: product.getPrimaryImage(),
+        image: primaryImage,
       },
       quantityOption: {
         _id: quantityOption._id,

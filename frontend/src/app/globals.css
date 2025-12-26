@@ -191,3 +191,15 @@ body {
 .toast-custom {
   @apply !bg-white !text-gray-900 !shadow-lg !rounded-xl !border !border-gray-100;
 }
+
+/* Safe area for bottom navigation on iOS */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Hide footer on mobile to avoid overlap with bottom nav */
+@media (max-width: 767px) {
+  footer {
+    display: none;
+  }
+}

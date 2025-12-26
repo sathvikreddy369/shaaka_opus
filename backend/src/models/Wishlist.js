@@ -68,18 +68,34 @@ wishlistSchema.methods.hasProduct = function(productId) {
   );
 };
 
-// Method to get wishlist with current product details
+// Method to get wishlist with current product details - optimized single query
 wishlistSchema.methods.getWithDetails = async function() {
   const Product = mongoose.model('Product');
+  
+  // Get all product IDs from wishlist
+  const productIds = this.items.map(item => item.product);
+  
+  // Single query to fetch all products
+  const products = await Product.find({
+    _id: { $in: productIds }
+  })
+    .select('name slug images quantityOptions minPrice maxPrice isActive isOutOfStock')
+    .lean();
+  
+  // Create a map for O(1) lookup
+  const productMap = new Map(products.map(p => [p._id.toString(), p]));
+  
   const items = [];
   
   for (const item of this.items) {
-    const product = await Product.findById(item.product)
-      .select('name slug images quantityOptions minPrice maxPrice isActive isOutOfStock');
+    const product = productMap.get(item.product.toString());
     
     if (!product) {
       continue;
     }
+    
+    // Get primary image
+    const primaryImage = product.images?.find(img => img.isPrimary) || product.images?.[0] || null;
     
     items.push({
       _id: item._id,
@@ -87,7 +103,8 @@ wishlistSchema.methods.getWithDetails = async function() {
         _id: product._id,
         name: product.name,
         slug: product.slug,
-        image: product.getPrimaryImage(),
+        image: primaryImage,
+        images: product.images,
         minPrice: product.minPrice,
         maxPrice: product.maxPrice,
         isActive: product.isActive,

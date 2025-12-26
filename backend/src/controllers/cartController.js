@@ -8,10 +8,37 @@ const { NotFoundError, ValidationError } = require('../utils/errors');
  * @access  Private
  */
 const getCart = asyncHandler(async (req, res) => {
+  // Use lean for faster reads, but we need methods so check existence first
   let cart = await Cart.findOne({ user: req.userId });
 
   if (!cart) {
     cart = await Cart.create({ user: req.userId, items: [] });
+    return sendResponse(res, 200, {
+      data: {
+        cart: {
+          _id: cart._id,
+          items: [],
+          invalidItems: [],
+          itemCount: 0,
+          subtotal: 0,
+        },
+      },
+    });
+  }
+
+  // If cart is empty, return early
+  if (cart.items.length === 0) {
+    return sendResponse(res, 200, {
+      data: {
+        cart: {
+          _id: cart._id,
+          items: [],
+          invalidItems: [],
+          itemCount: 0,
+          subtotal: 0,
+        },
+      },
+    });
   }
 
   const { validatedItems, invalidItems } = await cart.validateAndGetPrices();

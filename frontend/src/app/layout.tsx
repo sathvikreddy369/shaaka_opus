@@ -4,6 +4,7 @@ import './globals.css';
 import Providers from '@/components/Providers';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import BottomNav from '@/components/layout/BottomNav';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -83,8 +84,9 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col font-sans">
         <Providers>
           <Header />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 pb-16 md:pb-0">{children}</main>
           <Footer />
+          <BottomNav />
         </Providers>
       </body>
     </html>
