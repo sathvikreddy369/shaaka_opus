@@ -200,8 +200,16 @@ export default function CheckoutPage() {
       const { order, razorpayOrder } = responseData;
 
       if (paymentMethod === 'RAZORPAY' && razorpayOrder) {
-        const selectedAddress = addresses.find(a => a._id === selectedAddressId);
-        
+        // Check if Razorpay key is configured
+        if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+          addToast({
+            type: 'error',
+            message: 'Payment gateway not configured. Please try again later.',
+          });
+          setIsLoading(false);
+          return;
+        }
+
         const options = {
           key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
           amount: razorpayOrder.amount,
@@ -217,14 +225,17 @@ export default function CheckoutPage() {
                 razorpay_signature: razorpayResponse.razorpay_signature,
               });
 
-              addToast({ type: 'success', message: 'Order placed successfully!' });
+              addToast({ type: 'success', message: 'Payment successful! Order confirmed.' });
               await clearCart();
               router.push(`/order-success?orderId=${order._id}`);
             } catch (error: any) {
+              // Payment verification failed, but webhook might still process it
               addToast({
-                type: 'error',
-                message: error.response?.data?.message || 'Payment verification failed',
+                type: 'warning',
+                message: 'Payment processing. Please check your order status.',
               });
+              await clearCart();
+              router.push(`/order-success?orderId=${order._id}`);
             }
           },
           prefill: {
@@ -236,16 +247,47 @@ export default function CheckoutPage() {
             color: '#22c55e',
           },
           modal: {
-            ondismiss: () => {
+            ondismiss: async () => {
+              // Check if payment was actually completed (in case of page issues)
+              try {
+                const statusResponse = await orderAPI.checkPaymentStatus(order._id);
+                const statusData = statusResponse.data.data || statusResponse.data;
+                
+                if (statusData.paymentStatus === 'PAID') {
+                  addToast({ type: 'success', message: 'Payment successful!' });
+                  await clearCart();
+                  router.push(`/order-success?orderId=${order._id}`);
+                  return;
+                }
+              } catch (e) {
+                // Ignore - payment likely not completed
+              }
+              
               addToast({
-                type: 'warning',
-                message: 'Payment cancelled. Your order is pending.',
+                type: 'info',
+                message: 'Payment not completed. You can complete it from your orders page.',
               });
+              // Redirect to order page where they can retry payment
+              router.push(`/orders/${order._id}`);
             },
+          },
+          retry: {
+            enabled: true,
+            max_count: 3,
           },
         };
 
         const razorpay = new window.Razorpay(options);
+        
+        // Handle payment failures
+        razorpay.on('payment.failed', function (response: any) {
+          console.error('Payment failed:', response.error);
+          addToast({
+            type: 'error',
+            message: response.error?.description || 'Payment failed. Please try again.',
+          });
+        });
+        
         razorpay.open();
       } else {
         // COD order

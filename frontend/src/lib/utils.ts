@@ -64,6 +64,8 @@ export function debounce<T extends (...args: any[]) => any>(
 export function getOrderStatusColor(status: string): string {
   const colors: Record<string, string> = {
     PLACED: 'bg-yellow-100 text-yellow-800',
+    PAYMENT_PENDING: 'bg-orange-100 text-orange-800',
+    PAYMENT_FAILED: 'bg-red-100 text-red-800',
     CONFIRMED: 'bg-blue-100 text-blue-800',
     PACKED: 'bg-indigo-100 text-indigo-800',
     READY_TO_DELIVER: 'bg-purple-100 text-purple-800',
@@ -72,7 +74,6 @@ export function getOrderStatusColor(status: string): string {
     CANCELLED: 'bg-red-100 text-red-800',
     REFUND_INITIATED: 'bg-orange-100 text-orange-800',
     REFUNDED: 'bg-gray-100 text-gray-800',
-    PAYMENT_FAILED: 'bg-red-100 text-red-800',
   };
   return colors[status] || 'bg-gray-100 text-gray-800';
 }
@@ -80,6 +81,8 @@ export function getOrderStatusColor(status: string): string {
 export function getOrderStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     PLACED: 'Placed',
+    PAYMENT_PENDING: 'Payment Pending',
+    PAYMENT_FAILED: 'Payment Failed',
     CONFIRMED: 'Confirmed',
     PACKED: 'Packed',
     READY_TO_DELIVER: 'Ready to Deliver',
@@ -88,7 +91,6 @@ export function getOrderStatusLabel(status: string): string {
     CANCELLED: 'Cancelled',
     REFUND_INITIATED: 'Refund Initiated',
     REFUNDED: 'Refunded',
-    PAYMENT_FAILED: 'Payment Failed',
   };
   return labels[status] || status;
 }

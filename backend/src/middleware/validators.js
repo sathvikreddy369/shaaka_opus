@@ -23,12 +23,12 @@ const phoneValidation = body('phone')
   .matches(/^[6-9]\d{9}$/)
   .withMessage('Please enter a valid 10-digit Indian mobile number');
 
-// OTP validation
+// OTP validation (4 digits)
 const otpValidation = body('otp')
   .trim()
-  .isLength({ min: 6, max: 6 })
+  .isLength({ min: 4, max: 4 })
   .isNumeric()
-  .withMessage('Please enter a valid 6-digit OTP');
+  .withMessage('Please enter a valid 4-digit OTP');
 
 // Name validation
 const nameValidation = body('name')
@@ -170,7 +170,7 @@ const reviewValidation = [
 
 // Order status validation
 const orderStatusValidation = body('status')
-  .isIn(['CONFIRMED', 'PACKED', 'READY_TO_DELIVER', 'HANDED_TO_AGENT', 'DELIVERED', 'CANCELLED'])
+  .isIn(['PAYMENT_PENDING', 'PAYMENT_FAILED', 'CONFIRMED', 'PACKED', 'READY_TO_DELIVER', 'HANDED_TO_AGENT', 'DELIVERED', 'CANCELLED', 'REFUND_INITIATED', 'REFUNDED'])
   .withMessage('Invalid order status');
 
 // Pagination validation

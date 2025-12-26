@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   ShoppingCartIcon,
@@ -59,8 +60,15 @@ export default function Header() {
         <div className="flex items-center justify-between h-14 md:h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 md:w-12 md:h-12 bg-primary-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-lg md:text-xl">S</span>
+            <div className="w-9 h-9 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center">
+              <Image
+                src="/logo.jpeg"
+                alt="Shaaka Logo"
+                width={48}
+                height={48}
+                className="w-full h-full object-cover"
+                priority
+              />
             </div>
             <span className="font-heading font-bold text-lg md:text-2xl text-primary-700">
               Shaaka

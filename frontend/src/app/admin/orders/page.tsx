@@ -26,24 +26,30 @@ interface Order {
 const filterStatusOptions = [
   { value: '', label: 'All Status' },
   { value: 'PLACED', label: 'Placed' },
+  { value: 'PAYMENT_PENDING', label: 'Payment Pending' },
+  { value: 'PAYMENT_FAILED', label: 'Payment Failed' },
   { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'PACKED', label: 'Packed' },
   { value: 'READY_TO_DELIVER', label: 'Ready to Deliver' },
   { value: 'HANDED_TO_AGENT', label: 'Out for Delivery' },
   { value: 'DELIVERED', label: 'Delivered' },
   { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'REFUND_INITIATED', label: 'Refund Initiated' },
+  { value: 'REFUNDED', label: 'Refunded' },
 ];
 
 // Valid status transitions
 const statusTransitions: Record<string, string[]> = {
   'PLACED': ['CONFIRMED', 'CANCELLED'],
+  'PAYMENT_PENDING': ['CONFIRMED', 'CANCELLED'],
+  'PAYMENT_FAILED': ['CANCELLED'],
   'CONFIRMED': ['PACKED', 'CANCELLED'],
   'PACKED': ['READY_TO_DELIVER', 'CANCELLED'],
   'READY_TO_DELIVER': ['HANDED_TO_AGENT'],
   'HANDED_TO_AGENT': ['DELIVERED'],
   'DELIVERED': [],
-  'CANCELLED': [],
-  'REFUND_INITIATED': [],
+  'CANCELLED': ['REFUND_INITIATED'],
+  'REFUND_INITIATED': ['REFUNDED'],
   'REFUNDED': [],
 };
 

@@ -86,7 +86,6 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCancelling, setIsCancelling] = useState(false);
   
   // Review state
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -114,27 +113,6 @@ export default function OrderDetailPage() {
 
     fetchOrder();
   }, [isAuthenticated, orderId, router]);
-
-  const handleCancelOrder = async () => {
-    if (!order || !confirm('Are you sure you want to cancel this order?')) return;
-
-    setIsCancelling(true);
-    try {
-      await orderAPI.cancel(order._id);
-      addToast({ type: 'success', message: 'Order cancelled successfully' });
-      // Refresh order data
-      const response = await orderAPI.getById(orderId);
-      const data = response.data.data || response.data;
-      setOrder(data.order);
-    } catch (error: any) {
-      addToast({
-        type: 'error',
-        message: error.response?.data?.message || 'Failed to cancel order',
-      });
-    } finally {
-      setIsCancelling(false);
-    }
-  };
 
   const handleOpenReview = (item: OrderItem) => {
     setReviewingItem(item);
@@ -213,10 +191,7 @@ export default function OrderDetailPage() {
   const currentStatusIndex = statusOrder.indexOf(order.status);
   const isCancelled = order.status === 'CANCELLED';
   const isDelivered = order.status === 'DELIVERED';
-  const canCancel =
-    !isCancelled &&
-    ['PLACED', 'CONFIRMED'].includes(order.status) &&
-    order.paymentStatus !== 'REFUNDED';
+  const isPaymentFailed = order.status === 'PAYMENT_FAILED';
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -242,20 +217,29 @@ export default function OrderDetailPage() {
           >
             {getOrderStatusLabel(order.status)}
           </span>
-          {canCancel && (
-            <button
-              onClick={handleCancelOrder}
-              disabled={isCancelling}
-              className="btn-secondary text-red-600 border-red-300 hover:bg-red-50 disabled:opacity-50"
-            >
-              {isCancelling ? 'Cancelling...' : 'Cancel Order'}
-            </button>
-          )}
         </div>
       </div>
 
+      {/* Payment Failed Notice */}
+      {isPaymentFailed && (
+        <div className="card p-6 mb-8 bg-red-50 border-red-200">
+          <div className="flex items-start gap-3">
+            <XCircleIcon className="h-6 w-6 text-red-500 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-red-800">Payment Failed</h3>
+              <p className="text-red-600 text-sm mt-1">
+                Your payment could not be processed. Please place a new order to continue shopping.
+              </p>
+              <Link href="/cart" className="btn-primary mt-3 inline-block text-sm">
+                Go to Cart
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Order progress */}
-      {!isCancelled && order.status !== 'PAYMENT_FAILED' && (
+      {!isCancelled && !isPaymentFailed && (
         <div className="card p-6 mb-8">
           <h2 className="font-semibold mb-6">Order Progress</h2>
           <div className="relative">

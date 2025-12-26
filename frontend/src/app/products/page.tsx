@@ -8,6 +8,7 @@ import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
   ArrowTrendingUpIcon,
+  ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import ProductGrid from '@/components/products/ProductGrid';
 import { productAPI, categoryAPI } from '@/lib/api';
@@ -242,6 +243,8 @@ function ProductsPageContent() {
   const hasActiveFilters =
     selectedCategory || appliedSearch || priceRange.min || priceRange.max || inStockOnly;
 
+  const hasAdvancedFilters = priceRange.min || priceRange.max || inStockOnly;
+
   return (
     <div className="container mx-auto px-4 py-6">
       {/* Header with Search */}
@@ -389,8 +392,67 @@ function ProductsPageContent() {
         </p>
       </div>
 
+      {/* Mobile: Top filter bar with category, sort, and filters button */}
+      <div className="lg:hidden mb-4">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {/* Category dropdown */}
+          <div className="relative flex-shrink-0">
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="appearance-none pl-3 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">All Categories</option>
+              {categories.map((category) => (
+                <option key={category._id} value={category.slug}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDownIcon className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+          </div>
+
+          {/* Sort dropdown */}
+          <div className="relative flex-shrink-0">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="appearance-none pl-3 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDownIcon className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+          </div>
+
+          {/* Advanced Filters button */}
+          <button
+            onClick={() => setShowFilters(true)}
+            className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
+              hasAdvancedFilters 
+                ? 'border-primary-500 bg-primary-50 text-primary-700' 
+                : 'border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <AdjustmentsHorizontalIcon className="h-4 w-4" />
+            <span>Filters</span>
+            {hasAdvancedFilters && (
+              <span className="w-5 h-5 bg-primary-500 text-white text-xs rounded-full flex items-center justify-center">
+                !
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Sidebar filters - Desktop */}
+        {/* Sidebar filters - Desktop only */}
         <aside className="hidden lg:block w-64 flex-shrink-0">
           <div className="card p-5 sticky top-24">
             <div className="flex items-center justify-between mb-4">
@@ -422,6 +484,24 @@ function ProductsPageContent() {
                 {categories.map((category) => (
                   <option key={category._id} value={category.slug}>
                     {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sort By
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="input w-full"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -479,34 +559,6 @@ function ProductsPageContent() {
 
         {/* Main content */}
         <main className="flex-1">
-          {/* Mobile filter button and sort */}
-          <div className="flex items-center justify-between gap-3 mb-5">
-            <button
-              onClick={() => setShowFilters(true)}
-              className="lg:hidden flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <AdjustmentsHorizontalIcon className="h-5 w-5" />
-              <span>Filters</span>
-              {hasActiveFilters && (
-                <span className="w-5 h-5 bg-primary-500 text-white text-xs rounded-full flex items-center justify-center">
-                  !
-                </span>
-              )}
-            </button>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="input max-w-[180px]"
-            >
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Active filters */}
           {hasActiveFilters && (
             <div className="flex flex-wrap items-center gap-2 mb-5">
@@ -542,6 +594,12 @@ function ProductsPageContent() {
                   </button>
                 </span>
               )}
+              <button
+                onClick={clearFilters}
+                className="text-sm text-gray-500 hover:text-gray-700 underline"
+              >
+                Clear all
+              </button>
             </div>
           )}
 
@@ -573,13 +631,13 @@ function ProductsPageContent() {
         </main>
       </div>
 
-      {/* Mobile filters modal */}
+      {/* Mobile filters modal - Advanced filters only */}
       {showFilters && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowFilters(false)} />
-          <div className="absolute inset-y-0 right-0 w-80 max-w-full bg-white shadow-xl overflow-y-auto">
-            <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white">
-              <h2 className="font-semibold text-lg">Filters</h2>
+          <div className="absolute inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-xl overflow-hidden animate-slide-up">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="font-semibold text-lg">Advanced Filters</h2>
               <button
                 onClick={() => setShowFilters(false)}
                 className="p-2 hover:bg-gray-100 rounded-full"
@@ -587,90 +645,90 @@ function ProductsPageContent() {
                 <XMarkIcon className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-4 space-y-5">
-              {/* Categories */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Category
-                </label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => {
-                    setSelectedCategory(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="input w-full"
-                >
-                  <option value="">All Categories</option>
-                  {categories.map((category) => (
-                    <option key={category._id} value={category.slug}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
+            <div className="p-4 space-y-5 max-h-[60vh] overflow-y-auto">
               {/* Price Range */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Price Range
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={priceRange.min}
-                    onChange={(e) => {
-                      setPriceRange({ ...priceRange, min: e.target.value });
-                      setCurrentPage(1);
-                    }}
-                    placeholder="Min"
-                    className="input w-full"
-                    min="0"
-                  />
-                  <span>-</span>
-                  <input
-                    type="number"
-                    value={priceRange.max}
-                    onChange={(e) => {
-                      setPriceRange({ ...priceRange, max: e.target.value });
-                      setCurrentPage(1);
-                    }}
-                    placeholder="Max"
-                    className="input w-full"
-                    min="0"
-                  />
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      value={priceRange.min}
+                      onChange={(e) => {
+                        setPriceRange({ ...priceRange, min: e.target.value });
+                      }}
+                      placeholder="Min"
+                      className="input w-full"
+                      min="0"
+                    />
+                  </div>
+                  <span className="text-gray-400">to</span>
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      value={priceRange.max}
+                      onChange={(e) => {
+                        setPriceRange({ ...priceRange, max: e.target.value });
+                      }}
+                      placeholder="Max"
+                      className="input w-full"
+                      min="0"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* In Stock */}
+              {/* Stock Status */}
               <div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={inStockOnly}
-                    onChange={(e) => {
-                      setInStockOnly(e.target.checked);
-                      setCurrentPage(1);
-                    }}
-                    className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-gray-700">In stock only</span>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Stock Status
                 </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="stockStatus"
+                      checked={!inStockOnly}
+                      onChange={() => setInStockOnly(false)}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700">All Products</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="stockStatus"
+                      checked={inStockOnly}
+                      onChange={() => setInStockOnly(true)}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700">In Stock Only</span>
+                  </label>
+                </div>
               </div>
             </div>
-            <div className="p-4 border-t space-y-2 sticky bottom-0 bg-white">
+            <div className="p-4 border-t space-y-2 bg-white">
               <button
-                onClick={() => setShowFilters(false)}
+                onClick={() => {
+                  setShowFilters(false);
+                  setCurrentPage(1);
+                }}
                 className="btn-primary w-full"
               >
                 Apply Filters
               </button>
-              {hasActiveFilters && (
+              {hasAdvancedFilters && (
                 <button
-                  onClick={clearFilters}
+                  onClick={() => {
+                    setPriceRange({ min: '', max: '' });
+                    setInStockOnly(false);
+                    setCurrentPage(1);
+                  }}
                   className="btn-secondary w-full"
                 >
-                  Clear All
+                  Clear Filters
                 </button>
               )}
             </div>

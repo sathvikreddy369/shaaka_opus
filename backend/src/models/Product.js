@@ -152,8 +152,7 @@ const productSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Indexes
-productSchema.index({ slug: 1 });
+// Indexes (slug already indexed via unique: true in schema)
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ isActive: 1, createdAt: -1 });
 productSchema.index({ minPrice: 1, maxPrice: 1 });

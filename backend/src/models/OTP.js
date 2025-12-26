@@ -38,9 +38,9 @@ const otpSchema = new mongoose.Schema({
 otpSchema.index({ phone: 1, purpose: 1 });
 otpSchema.index({ createdAt: 1 });
 
-// Static method to generate OTP
+// Static method to generate OTP (4 digits)
 otpSchema.statics.generateOTP = function() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
 // Static method to create OTP with expiry

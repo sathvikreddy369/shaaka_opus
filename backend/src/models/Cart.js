@@ -40,8 +40,7 @@ const cartSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Indexes
-cartSchema.index({ user: 1 });
+// Indexes (user already indexed via unique: true in schema)
 cartSchema.index({ 'items.product': 1 });
 cartSchema.index({ lastModified: -1 });
 

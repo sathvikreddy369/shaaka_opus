@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { HeartIcon, ShoppingCartIcon } from '@heroicons/react/24/outline';
@@ -41,9 +41,15 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   // Select the first quantity option by default
   const [selectedOption, setSelectedOption] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const currentOption = product.quantityOptions?.[selectedOption];
 
-  const isWishlisted = isInWishlist(product._id);
+  // Handle hydration mismatch for wishlist state
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isWishlisted = mounted ? isInWishlist(product._id) : false;
   const isOutOfStock = product.isOutOfStock || !currentOption || currentOption.stock <= 0;
   const discount = currentOption?.discountPercent || 0;
 

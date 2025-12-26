@@ -29,8 +29,7 @@ const wishlistSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Indexes
-wishlistSchema.index({ user: 1 });
+// Indexes (user already indexed via unique: true in schema)
 wishlistSchema.index({ 'items.product': 1 });
 
 // Method to add item to wishlist

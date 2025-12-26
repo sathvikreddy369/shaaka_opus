@@ -14,6 +14,7 @@ const createOrder = async (amount, currency = 'INR', receipt, notes = {}) => {
       currency,
       receipt,
       notes,
+      payment_capture: 1, // Auto-capture payments
     };
     const order = await razorpay.orders.create(options);
     return order;
@@ -33,11 +34,16 @@ const verifyPaymentSignature = (orderId, paymentId, signature) => {
 };
 
 const verifyWebhookSignature = (body, signature) => {
-  const expectedSignature = crypto
-    .createHmac('sha256', config.razorpay.webhookSecret)
-    .update(JSON.stringify(body))
-    .digest('hex');
-  return expectedSignature === signature;
+  try {
+    const expectedSignature = crypto
+      .createHmac('sha256', config.razorpay.webhookSecret)
+      .update(JSON.stringify(body))
+      .digest('hex');
+    return expectedSignature === signature;
+  } catch (error) {
+    console.error('Error verifying webhook signature:', error);
+    return false;
+  }
 };
 
 const fetchPayment = async (paymentId) => {
@@ -46,6 +52,26 @@ const fetchPayment = async (paymentId) => {
     return payment;
   } catch (error) {
     console.error('Error fetching payment:', error);
+    throw error;
+  }
+};
+
+const fetchOrder = async (orderId) => {
+  try {
+    const order = await razorpay.orders.fetch(orderId);
+    return order;
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    throw error;
+  }
+};
+
+const fetchOrderPayments = async (orderId) => {
+  try {
+    const payments = await razorpay.orders.fetchPayments(orderId);
+    return payments;
+  } catch (error) {
+    console.error('Error fetching order payments:', error);
     throw error;
   }
 };
@@ -63,11 +89,94 @@ const initiateRefund = async (paymentId, amount, notes = {}) => {
   }
 };
 
+const fetchRefund = async (paymentId, refundId) => {
+  try {
+    const refund = await razorpay.refunds.fetch(refundId);
+    return refund;
+  } catch (error) {
+    console.error('Error fetching refund:', error);
+    throw error;
+  }
+};
+
+// Extract detailed payment info from Razorpay payment object
+const extractPaymentDetails = (payment) => {
+  const details = {
+    razorpayPaymentId: payment.id,
+    method: payment.method || 'unknown',
+    amount: payment.amount / 100, // Convert paise to rupees
+    currency: payment.currency,
+    fee: payment.fee, // in paise
+    tax: payment.tax, // in paise
+    email: payment.email,
+    contact: payment.contact,
+    international: payment.international || false,
+  };
+
+  // UPI specific
+  if (payment.method === 'upi') {
+    details.upiVpa = payment.vpa;
+    if (payment.acquirer_data) {
+      details.acquirerData = {
+        rrn: payment.acquirer_data.rrn,
+        upiTransactionId: payment.acquirer_data.upi_transaction_id,
+      };
+    }
+  }
+
+  // Card specific
+  if (payment.method === 'card' && payment.card) {
+    details.cardLast4 = payment.card.last4;
+    details.cardNetwork = payment.card.network;
+    details.cardType = payment.card.type;
+    details.cardIssuer = payment.card.issuer;
+  }
+
+  // Netbanking specific
+  if (payment.method === 'netbanking') {
+    details.bankName = payment.bank;
+  }
+
+  // Wallet specific
+  if (payment.method === 'wallet') {
+    details.walletName = payment.wallet;
+  }
+
+  // Acquirer data for cards/netbanking
+  if (payment.acquirer_data && payment.method !== 'upi') {
+    details.acquirerData = {
+      rrn: payment.acquirer_data.rrn,
+      authCode: payment.acquirer_data.auth_code,
+    };
+  }
+
+  // Error info for failed payments
+  if (payment.error_code) {
+    details.errorCode = payment.error_code;
+    details.errorDescription = payment.error_description;
+    details.errorSource = payment.error_source;
+    details.errorStep = payment.error_step;
+    details.errorReason = payment.error_reason;
+    details.failedAt = new Date();
+  }
+
+  // Captured time
+  if (payment.status === 'captured') {
+    details.capturedAt = new Date(payment.created_at * 1000);
+  }
+
+  return details;
+};
+
 module.exports = {
   razorpay,
   createOrder,
   verifyPaymentSignature,
   verifyWebhookSignature,
   fetchPayment,
+  fetchOrder,
+  fetchOrderPayments,
   initiateRefund,
+  fetchRefund,
+  extractPaymentDetails,
 };

@@ -98,9 +98,7 @@ const userSchema = new mongoose.Schema({
   },
 });
 
-// Indexes
-userSchema.index({ phone: 1 });
-userSchema.index({ email: 1 });
+// Indexes (phone and email already indexed via unique: true in schema)
 userSchema.index({ role: 1 });
 userSchema.index({ createdAt: -1 });
 

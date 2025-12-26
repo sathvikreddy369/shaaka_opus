@@ -326,6 +326,12 @@ export const orderAPI = {
   }) =>
     api.post(`/orders/${orderId}/verify-payment`, paymentData),
 
+  checkPaymentStatus: (orderId: string) =>
+    api.get(`/orders/${orderId}/payment-status`),
+
+  retryPayment: (orderId: string) =>
+    api.post(`/orders/${orderId}/retry-payment`),
+
   cancel: (id: string, reason?: string) =>
     api.post(`/orders/${id}/cancel`, { reason }),
 

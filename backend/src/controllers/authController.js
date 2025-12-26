@@ -12,7 +12,7 @@ const TEST_PHONE_NUMBERS = [
   '9876543210',
   '9876543211',
 ];
-const TEST_OTP = '123456';
+const TEST_OTP = '1234';
 
 /**
  * @desc    Request OTP for login/signup
@@ -34,7 +34,7 @@ const requestOTP = asyncHandler(async (req, res) => {
         isProfileComplete: existingUser?.isProfileComplete || false,
         testMode: true,
       },
-    }, 'OTP sent successfully (Test Mode - Use 123456)');
+    }, 'OTP sent successfully (Test Mode - Use 1234)');
     return;
   }
 

@@ -339,7 +339,7 @@ const seedDatabase = async () => {
       console.log(`│ ${u.phone.padEnd(15)} │ ${u.name.padEnd(12)} │ ${u.role.padEnd(6)} │`);
     });
     console.log('└─────────────────┴──────────────┴────────┘');
-    console.log('\n💡 Use OTP: 123456 for these test numbers');
+    console.log('\n💡 Use OTP: 1234 for these test numbers');
 
     process.exit(0);
   } catch (error) {

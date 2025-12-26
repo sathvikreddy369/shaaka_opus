@@ -198,13 +198,13 @@ export default function AuthModal() {
                       <input
                         id="otp"
                         type="text"
-                        placeholder="Enter 6-digit OTP"
-                        maxLength={6}
+                        placeholder="Enter 4-digit OTP"
+                        maxLength={4}
                         {...otpForm.register('otp', {
                           required: 'OTP is required',
                           pattern: {
-                            value: /^\d{6}$/,
-                            message: 'Enter a valid 6-digit OTP',
+                            value: /^\d{4}$/,
+                            message: 'Enter a valid 4-digit OTP',
                           },
                         })}
                         className="input w-full text-center text-2xl tracking-widest"

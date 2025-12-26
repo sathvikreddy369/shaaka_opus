@@ -18,7 +18,7 @@ router.get(
   '/',
   paginationValidation,
   query('status').optional().isIn([
-    'PLACED', 'CONFIRMED', 'PACKED', 'READY_TO_DELIVER',
+    'PLACED', 'PAYMENT_PENDING', 'PAYMENT_FAILED', 'CONFIRMED', 'PACKED', 'READY_TO_DELIVER',
     'HANDED_TO_AGENT', 'DELIVERED', 'CANCELLED', 'REFUND_INITIATED', 'REFUNDED',
   ]),
   validate,
@@ -50,6 +50,20 @@ router.post(
   body('razorpay_signature').notEmpty(),
   validate,
   orderController.verifyPayment
+);
+
+router.get(
+  '/:orderId/payment-status',
+  mongoIdValidation('orderId'),
+  validate,
+  orderController.checkPaymentStatus
+);
+
+router.post(
+  '/:orderId/retry-payment',
+  mongoIdValidation('orderId'),
+  validate,
+  orderController.retryPayment
 );
 
 router.post(
